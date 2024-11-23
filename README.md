@@ -65,7 +65,6 @@ pip3 install -r requirements.txt
 
 python3 rootX.py
 
----
 
 ### Basic Commands
 - `/server <server> [port] [nickname]` - Connect to a server
