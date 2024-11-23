@@ -55,7 +55,7 @@ rootX is a modern, feature-rich IRC client built with Python and Tkinter, offeri
 
 ### Clone the repository:
 
-git clone https://github.com/yourusername/rootX.git
+git clone https://github.com/gotr00t0day/rootX.git
 
 ### Install dependencies
 
