@@ -65,6 +65,16 @@ pip3 install -r requirements.txt
 
 python3 rootX.py
 
+# User Menu
+
+Left click on a user in the channel window to access the user menu.
+
+![User Menu](./images/user_menu.png)
+
+# Open and Hide Channel Windows
+
+Left click on a channel in the network tree to open or hide the channel window.
+
 
 ### Basic Commands
 - `/server <server> [port] [nickname]` - Connect to a server
