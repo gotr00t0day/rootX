@@ -666,10 +666,27 @@ class ChannelWindow:
                 self.irc_client.send_command(f"PRIVMSG {self.channel_name} :{message}", self.server)
                 # Add our message locally immediately
                 current_nick = self.irc_client.connections[self.server]['nickname']
-                self.add_message(f"{current_nick}: {message}")
+                self.add_message(f"{current_nick}: {message}")  # No tag needed, will use default
             self.message_input.delete(0, tk.END)
+
+    def _update_users_list_safe(self):
+        """Internal method to safely update users list in the GUI thread"""
+        try:
+            self.users_listbox.delete(0, tk.END)
+            for user in sorted(self.users):
+                self.users_listbox.insert(tk.END, user)
+        except Exception as e:
+            print(f"Error in _update_users_list_safe: {e}")
             
     def update_users_list(self):
+
+        """Update the users listbox safely"""
+        if not self.is_closing:
+            try:
+                self.window.after(0, self._update_users_list_safe)
+            except Exception as e:
+                print(f"Error updating users list: {e}")
+
         """Update the users listbox with current users"""
         try:
             if not self.window.winfo_exists():
@@ -732,58 +749,74 @@ class ChannelWindow:
                     self.users_listbox.itemconfig(i, foreground='white')
         finally:
             self.batch_updating = False
-        
-    def add_message(self, message):
-        timestamp = datetime.now().strftime("[%H:%M:%S]")
-        
-        # Insert timestamp with gray color
-        self.chat_display.insert(tk.END, timestamp + " ", 'timestamp')
-        
-        # Handle different types of messages
-        if message.startswith('* '):  # System messages
-            if 'has joined' in message:
-                self.chat_display.insert(tk.END, message + '\n', 'join')
-            elif 'has left' in message:
-                self.chat_display.insert(tk.END, message + '\n', 'part')
-            elif 'has quit' in message:
-                self.chat_display.insert(tk.END, message + '\n', 'quit')
-            elif 'is now known as' in message:
-                self.chat_display.insert(tk.END, message + '\n', 'nick')
-        else:
-            # Regular chat messages
-            if ': ' in message:
-                username, text = message.split(': ', 1)
-                # Check if the message is from the current user
-                current_nick = self.irc_client.connections[self.server]['nickname']
-                if username == current_nick:
-                    self.chat_display.insert(tk.END, username + ': ', 'my_username')
-                else:
-                    self.chat_display.insert(tk.END, username + ': ', 'username')
-                self.chat_display.insert(tk.END, text + '\n', 'message')
+
+    def _add_message_safe(self, message, tag=None):
+        """Internal method to safely add message in the GUI thread"""
+        try:
+            timestamp = datetime.now().strftime("[%H:%M:%S]")
+            
+            # Insert timestamp with gray color
+            self.chat_display.insert(tk.END, timestamp + " ", 'timestamp')
+            
+            # Handle different types of messages
+            if message.startswith('* '):  # System messages
+                if 'has joined' in message:
+                    self.chat_display.insert(tk.END, message + '\n', 'join')
+                elif 'has left' in message:
+                    self.chat_display.insert(tk.END, message + '\n', 'part')
+                elif 'has quit' in message:
+                    self.chat_display.insert(tk.END, message + '\n', 'quit')
+                elif 'is now known as' in message:
+                    self.chat_display.insert(tk.END, message + '\n', 'nick')
             else:
-                self.chat_display.insert(tk.END, message + '\n', 'message')
+                # Regular chat messages
+                if ': ' in message:
+                    username, text = message.split(': ', 1)
+                    # Check if the message is from the current user
+                    current_nick = self.irc_client.connections[self.server]['nickname']
+                    if username == current_nick:
+                        self.chat_display.insert(tk.END, username + ': ', 'my_username')
+                    else:
+                        self.chat_display.insert(tk.END, username + ': ', 'username')
+                    self.chat_display.insert(tk.END, text + '\n', tag or 'message')
+                else:
+                    self.chat_display.insert(tk.END, message + '\n', tag or 'message')
+            
+            self.chat_display.see(tk.END)
+            self.chat_display.update()
+        except Exception as e:
+            print(f"Error in _add_message_safe: {e}")
+
+
         
-        self.chat_display.see(tk.END)
-        self.chat_display.update()
+    def add_message(self, message, tag=None):
+
+        """Add a message to the chat display safely"""
+        """Add a message to the chat display safely"""
+        if not self.is_closing:
+            try:
+                self.window.after(0, self._add_message_safe, message, tag)
+            except Exception as e:
+                print(f"Error adding message: {e}")
             
     def on_closing(self):
-        self.is_closing = True
-        # Remove channel from network tree
-        server_data = self.irc_client.server_nodes.get(self.server)  # Use self.server instead of current_server
-        if server_data and self.channel_name in server_data['channels']:
-            self.irc_client.network_tree.delete(server_data['channels'][self.channel_name])
-            del server_data['channels'][self.channel_name]
-        
-        # Send PART command to server
-        self.irc_client.send_command(f"PART {self.channel_name}", self.server)
-        
-        # Clean up channel windows dict
-        channel_key = f"{self.server}:{self.channel_name}"
-        if channel_key in self.irc_client.channel_windows:
-            del self.irc_client.channel_windows[channel_key]
-        
-        # Destroy window
-        self.window.destroy()
+        """Handle window closing properly"""
+        try:
+            self.is_closing = True
+            # Remove channel from network tree
+            server_data = self.irc_client.server_nodes.get(self.server)  # Use self.server instead of current_server
+            if server_data and self.channel_name in server_data['channels']:
+                self.irc_client.network_tree.delete(server_data['channels'][self.channel_name])
+                del server_data['channels'][self.channel_name]
+
+            # Clean up channel windows dict
+            channel_key = f"{self.server}:{self.channel_name}"
+            if channel_key in self.irc_client.channel_windows:
+                del self.irc_client.channel_windows[channel_key]
+            self.irc_client.send_command(f"PART {self.channel_name}", self.server)
+            self.window.destroy()
+        except Exception as e:
+            print(f"Error in on_closing: {e}")
 
     def toggle_visibility(self):
         if self.minimized:
@@ -890,18 +923,18 @@ class IRCClient:
         self.channel_windows = {}
         self.private_windows = {}
         self.server_nodes = {}
+        self.lock = threading.Lock()
+        self.running = True
         self.current_server = None
+        self.disconnecting = False
         
         # Create GUI
         self.create_status_window()
         
-        # Connect to default server
-        self.connect_to_server(default_server, default_port, default_nickname)
-
-
         self.preferences = {
             'theme': 'default'
         }
+        #self.connect_to_server(default_server, default_port, default_nickname)
         
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
@@ -1687,6 +1720,35 @@ class IRCClient:
         
         ttk.Button(connect_window, text="Connect", command=connect).pack(pady=20)
 
+    def disconnect_from_server(self, server):
+        """Safely disconnect from a server"""
+        try:
+            self.disconnecting = True
+            with self.lock:
+                if server in self.connections:
+                    # Close all channel windows for this server
+                    channels_to_close = [
+                        key for key in self.channel_windows.keys()
+                        if key.startswith(f"{server}:")
+                    ]
+                    for channel_key in channels_to_close:
+                        if channel_key in self.channel_windows:
+                            self.channel_windows[channel_key].on_closing()
+                    
+                    # Close the socket
+                    try:
+                        self.connections[server]['socket'].close()
+                    except:
+                        pass
+                    del self.connections[server]
+                    
+                    # Remove server node
+                    if server in self.server_nodes:
+                        self.network_tree.delete(self.server_nodes[server])
+                        del self.server_nodes[server]
+        finally:
+            self.disconnecting = False
+
     def show_disconnect_dialog(self):
         """Show dialog for disconnecting from a server"""
         if not self.connections:
@@ -1844,6 +1906,13 @@ class IRCClient:
                 self.send_command(f"PRIVMSG NickServ :{nickserv_command}", self.current_server)
             else:
                 self.add_status_message("Usage: /nickserv identify <password> or /nickserv register <password> <email>")
+
+        elif cmd == '/chanserv' or cmd == '/cs':
+            if len(parts) > 1:
+                chanserv_command = ' '.join(parts[1:])
+                self.send_command(f"PRIVMSG ChanServ :{chanserv_command}", self.current_server)
+            else:
+                self.add_status_message("Usage: /chanserv identify <password>")
                 
     def add_status_message(self, message):
         timestamp = datetime.now().strftime("[%H:%M:%S]")
@@ -2193,37 +2262,38 @@ class IRCClient:
 
     def receive_messages(self, server):
         """Receive messages from a specific server"""
-        while True:
+        while self.running:  # Use running flag
             try:
-                if server not in self.connections:
-                    break
+                with self.lock:  # Use lock for thread safety
+                    if server not in self.connections:
+                        break
                     
-                conn = self.connections[server]
-                try:
-                    data = conn['socket'].recv(4096).decode('utf-8')
-                    if not data:
-                        raise ConnectionError("Server closed connection")
-                except UnicodeDecodeError:
+                    conn = self.connections[server]
                     try:
-                        data = conn['socket'].recv(4096).decode('latin-1')
-                    except:
-                        data = conn['socket'].recv(4096).decode('iso-8859-1')
-                
-                if not data:
-                    break
+                        data = conn['socket'].recv(4096).decode('utf-8')
+                        if not data:
+                            raise ConnectionError("Server closed connection")
+                    except UnicodeDecodeError:
+                        try:
+                            data = conn['socket'].recv(4096).decode('latin-1')
+                        except:
+                            data = conn['socket'].recv(4096).decode('iso-8859-1')
                     
-                if data.startswith('PING'):
-                    self.send_command('PONG' + data.split('PING')[1], server)
-                    continue
-                
-                # Process received data
-                conn['buffer'] += data
-                lines = conn['buffer'].split('\r\n')
-                conn['buffer'] = lines.pop()
-                
-                for line in lines:
-                    self.handle_server_message(line, server)
+                    if not data:
+                        break
+                        
+                    if data.startswith('PING'):
+                        self.send_command('PONG' + data.split('PING')[1], server)
+                        continue
                     
+                    # Process received data
+                    conn['buffer'] += data
+                    lines = conn['buffer'].split('\r\n')
+                    conn['buffer'] = lines.pop()
+                    
+                    for line in lines:
+                        self.handle_server_message(line, server)
+                        
             except Exception as e:
                 self.add_status_message(f"Error receiving from {server}: {e}")
                 break
@@ -2231,7 +2301,12 @@ class IRCClient:
     def connect_to_server(self, server, port, nickname):
         """Connect to a new server"""
         try:
-            # Create new socket connection
+            # Check if already connected
+            if server in self.connections:
+                self.add_status_message(f"Already connected to {server}")
+                return False
+
+            # Create new socket connection (simplified)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((server, port))
             
@@ -2251,7 +2326,7 @@ class IRCClient:
             self.send_command(f"NICK {nickname}", server)
             self.send_command(f"USER {nickname} 0 * :{nickname}", server)
             
-            # Start receive thread for this server
+            # Start receive thread
             receive_thread = threading.Thread(target=self.receive_messages, args=(server,))
             receive_thread.daemon = True
             receive_thread.start()
@@ -2261,6 +2336,10 @@ class IRCClient:
             
         except Exception as e:
             self.add_status_message(f"Failed to connect to {server}: {e}")
+            if server in self.connections:
+                del self.connections[server]
+            if server in self.server_nodes:
+                self.remove_server_node(server)
             return False
                 
     def run(self):
@@ -2268,16 +2347,15 @@ class IRCClient:
         try:
             # Start the GUI main loop
             self.status_window.mainloop()
-            
-            # Close all connections when done
-            for server, conn in self.connections.items():
-                try:
-                    conn['socket'].close()
-                except:
-                    pass
-                    
-        except Exception as e:
-            print(f"Error in main loop: {e}")
+        finally:
+            # Cleanup when the program exits
+            self.running = False
+            with self.lock:
+                for server, conn in self.connections.items():
+                    try:
+                        conn['socket'].close()
+                    except:
+                        pass
 
 def main():
     server = "irc.libera.chat"
