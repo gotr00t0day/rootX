@@ -61,20 +61,20 @@ git clone https://github.com/gotr00t0day/rootX.git
 
 pip3 install -r requirements.txt
 
-## Usage
+# Usage
 
 python3 rootX.py
 
-# User Menu
+### User Menu
 
 Left click on a user in the channel window to access the user menu.
 
 ![User Menu](user_menu.png)
 
-# Open and Hide Channel Windows
+### Open and Hide Channel Windows
 
 Left click on a channel in the network tree to open or hide the channel window.
-
+---
 
 ### Basic Commands
 - `/server <server> [port] [nickname]` - Connect to a server
