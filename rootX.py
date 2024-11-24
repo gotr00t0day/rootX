@@ -1929,7 +1929,12 @@ class IRCClient:
             # Print raw data to status window for debugging
             self.add_status_message(f"DEBUG: {data}")
             
-            if data.startswith('PING') or data.startswith('PONG'):
+            if data.startswith('PING'):
+                ping_param = data.split(':', 1)[1] if ':' in data else data.split('PING', 1)[1]
+                self.send_command(f'PONG :{ping_param.strip()}', server)
+                self.add_status_message(f"PONG sent to {server}")
+                return
+            elif data.startswith('PONG'):
                 return
             
 
