@@ -1742,10 +1742,8 @@ class IRCClient:
                         pass
                     del self.connections[server]
                     
-                    # Remove server node
-                    if server in self.server_nodes:
-                        self.network_tree.delete(self.server_nodes[server])
-                        del self.server_nodes[server]
+                    # Use the dedicated method to remove server node and all its children
+                    self.remove_server_node(server)
         finally:
             self.disconnecting = False
 
@@ -1926,6 +1924,7 @@ class IRCClient:
                 error_msg = data.split(':', 1)[1].strip()
                 self.add_status_message(f"Server {server} disconnected: {error_msg}")
                 self.quit_server(server)
+                self.remove_server_node(server)  # Add this line
                 return
             # Print raw data to status window for debugging
             self.add_status_message(f"DEBUG: {data}")
@@ -2262,17 +2261,21 @@ class IRCClient:
 
     def receive_messages(self, server):
         """Receive messages from a specific server"""
-        while self.running:  # Use running flag
+        while self.running:
             try:
-                with self.lock:  # Use lock for thread safety
+                with self.lock:
                     if server not in self.connections:
                         break
                     
                     conn = self.connections[server]
                     try:
+                        # Set a timeout on the socket
+                        conn['socket'].settimeout(180)  # 3 minutes timeout
                         data = conn['socket'].recv(4096).decode('utf-8')
                         if not data:
                             raise ConnectionError("Server closed connection")
+                    except (socket.timeout, TimeoutError):
+                        raise ConnectionError("Connection timed out")
                     except UnicodeDecodeError:
                         try:
                             data = conn['socket'].recv(4096).decode('latin-1')
@@ -2281,10 +2284,6 @@ class IRCClient:
                     
                     if not data:
                         break
-                        
-                    if data.startswith('PING'):
-                        self.send_command('PONG' + data.split('PING')[1], server)
-                        continue
                     
                     # Process received data
                     conn['buffer'] += data
@@ -2292,10 +2291,20 @@ class IRCClient:
                     conn['buffer'] = lines.pop()
                     
                     for line in lines:
-                        self.handle_server_message(line, server)
+                        if line:  # Only process non-empty lines
+                            self.handle_server_message(line, server)
                         
             except Exception as e:
                 self.add_status_message(f"Error receiving from {server}: {e}")
+                # Clean up the connection
+                with self.lock:
+                    if server in self.connections:
+                        try:
+                            self.connections[server]['socket'].close()
+                        except:
+                            pass
+                        del self.connections[server]
+                        self.remove_server_node(server)
                 break
                 
     def connect_to_server(self, server, port, nickname):
