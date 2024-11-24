@@ -1922,26 +1922,17 @@ class IRCClient:
     
     def handle_server_message(self, data, server):
         try:
-            # Move PING handling to the top and fix the response format
-            if data.startswith('PING'):
-                # Extract the PING parameter and send it back
-                ping_param = data.split(':', 1)[1] if ':' in data else data.split('PING', 1)[1]
-                pong_response = f'PONG :{ping_param.strip()}'
-                self.send_command(pong_response, server)
-                self.add_status_message(f"DEBUG - Sent PONG response: {pong_response}")
-                return
-                
             if data.startswith('ERROR :') or 'Connection closed' in data:
                 error_msg = data.split(':', 1)[1].strip()
                 self.add_status_message(f"Server {server} disconnected: {error_msg}")
                 self.quit_server(server)
                 return
-
             # Print raw data to status window for debugging
             self.add_status_message(f"DEBUG: {data}")
             
-            if data.startswith('PONG'):
+            if data.startswith('PING') or data.startswith('PONG'):
                 return
+            
 
             elif 'MODE' in data:
                 try:
@@ -2271,9 +2262,9 @@ class IRCClient:
 
     def receive_messages(self, server):
         """Receive messages from a specific server"""
-        while self.running:
+        while self.running:  # Use running flag
             try:
-                with self.lock:
+                with self.lock:  # Use lock for thread safety
                     if server not in self.connections:
                         break
                     
@@ -2291,14 +2282,17 @@ class IRCClient:
                     if not data:
                         break
                         
+                    if data.startswith('PING'):
+                        self.send_command('PONG' + data.split('PING')[1], server)
+                        continue
+                    
                     # Process received data
                     conn['buffer'] += data
                     lines = conn['buffer'].split('\r\n')
                     conn['buffer'] = lines.pop()
                     
                     for line in lines:
-                        if line:  # Only process non-empty lines
-                            self.handle_server_message(line, server)
+                        self.handle_server_message(line, server)
                         
             except Exception as e:
                 self.add_status_message(f"Error receiving from {server}: {e}")
