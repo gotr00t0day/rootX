@@ -69,7 +69,7 @@ python3 rootX.py
 
 Left click on a user in the channel window to access the user menu.
 
-![User Menu](./images/user_menu.png)
+![User Menu](user_menu.png)
 
 # Open and Hide Channel Windows
 
