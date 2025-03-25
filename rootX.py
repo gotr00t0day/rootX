@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 from datetime import datetime
 from colorama import Fore, Style
+import time
 
 class ChannelWindow:
     def __init__(self, irc_client, channel_name, server):
@@ -81,6 +82,7 @@ class ChannelWindow:
         
         # Handle window closing
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+      
         
         # Configure text tags for different message types
         self.chat_display.tag_configure('timestamp', foreground='gray')
@@ -234,6 +236,13 @@ class ChannelWindow:
         self.menu_bar = tk.Menu(self.window)
         self.menu_bar.add_cascade(label="Server", menu=self.server_menu)
         self.window.config(menu=self.menu_bar)
+
+    def update_topic(self, topic):
+        """Update the channel topic"""
+        if topic:
+            self.topic_label.config(text=topic)
+        else:
+            self.topic_label.config(text="No topic set")
 
     def show_theme_settings(self):
         """Show theme settings window"""
@@ -918,23 +927,29 @@ class PrivateWindow:
 
 class IRCClient:
     def __init__(self, default_server, default_port, default_nickname):
-        self.connections = {}  # Dictionary to store server connections
+        """Initialize the IRC client"""
+        self.version = "rootX IRC Client v1.0"
+        self.default_server = default_server
+        self.default_port = default_port
         self.default_nickname = default_nickname
+        self.connections = {}
+        self.server_nodes = {}
         self.channel_windows = {}
         self.private_windows = {}
-        self.server_nodes = {}
-        self.lock = threading.Lock()
-        self.running = True
+        self.status_window = None
         self.current_server = None
+        self.running = True
+        self.lock = threading.Lock()
         self.disconnecting = False
+        self.receive_threads = {}  # Track receive threads by server
         
-        # Create GUI
-        self.create_status_window()
-        
+        # Initialize preferences
         self.preferences = {
             'theme': 'default'
         }
-        #self.connect_to_server(default_server, default_port, default_nickname)
+        
+        # Create GUI
+        self.create_status_window()
         
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
@@ -949,6 +964,9 @@ class IRCClient:
         """Quit from a server and clean up"""
         if server in self.connections:
             try:
+                # Set disconnecting flag to signal thread to exit
+                self.disconnecting = True
+                
                 # Send QUIT command to server
                 self.send_command(f"QUIT :{quit_message}", server)
                 
@@ -958,47 +976,77 @@ class IRCClient:
                     self.connections[server]['socket'].close()
                 except:
                     pass
+                
+                # Clean up connections dictionary
                 del self.connections[server]
                 
                 # Remove server node and cleanup windows
                 self.remove_server_node(server)
                 
+                # Wait for receive thread to exit (with timeout)
+                if server in self.receive_threads:
+                    self.receive_threads[server].join(1.0)  # Wait up to 1 second
+                    del self.receive_threads[server]
+                
                 self.add_status_message(f"Disconnected from {server}")
                 
             except Exception as e:
                 self.add_status_message(f"Error quitting {server}: {e}")
+            finally:
+                self.disconnecting = False
 
     def remove_server_node(self, server):
         """Remove a server node and all its children from the tree"""
-        if server in self.server_nodes:
-            # Delete all channel windows for this server
-            channels_to_remove = []
-            for channel_key in self.channel_windows.keys():
-                if channel_key.startswith(f"{server}:"):
-                    channels_to_remove.append(channel_key)
-            
-            for channel_key in channels_to_remove:
-                self.channel_windows[channel_key].window.destroy()
-                del self.channel_windows[channel_key]
+        try:
+            if server in self.server_nodes:
+                # Delete all channel windows for this server first
+                channels_to_remove = []
+                for channel_key in list(self.channel_windows.keys()):  # Create a list copy
+                    if channel_key.startswith(f"{server}:"):
+                        channels_to_remove.append(channel_key)
+                
+                # Safely destroy channel windows
+                for channel_key in channels_to_remove:
+                    try:
+                        if channel_key in self.channel_windows:
+                            window = self.channel_windows[channel_key]
+                            if window and window.window:
+                                window.window.destroy()
+                            del self.channel_windows[channel_key]
+                    except Exception as e:
+                        print(f"Error removing channel window {channel_key}: {e}")
 
-            # Delete all PM windows for this server
-            pms_to_remove = []
-            for username, window in self.private_windows.items():
-                if window.server == server:
-                    pms_to_remove.append(username)
-            
-            for username in pms_to_remove:
-                self.private_windows[username].window.destroy()
-                del self.private_windows[username]
+                # Delete all PM windows for this server
+                pms_to_remove = []
+                for username, window in list(self.private_windows.items()):  # Create a list copy
+                    if window.server == server:
+                        pms_to_remove.append(username)
+                
+                # Safely destroy PM windows
+                for username in pms_to_remove:
+                    try:
+                        if username in self.private_windows:
+                            window = self.private_windows[username]
+                            if window and window.window:
+                                window.window.destroy()
+                            del self.private_windows[username]
+                    except Exception as e:
+                        print(f"Error removing PM window for {username}: {e}")
 
-            # Remove from tree and clean up server_nodes
-            self.network_tree.delete(self.server_nodes[server]['node'])
-            del self.server_nodes[server]
-            
-            if server == self.current_server:
-                self.current_server = None
-            
-            print(f"Removed server node: {server}")  # Debug print
+                # Remove from tree and clean up server_nodes
+                if server in self.server_nodes:
+                    try:
+                        self.network_tree.delete(self.server_nodes[server]['node'])
+                        del self.server_nodes[server]
+                    except Exception as e:
+                        print(f"Error removing server node from tree: {e}")
+                
+                if server == self.current_server:
+                    self.current_server = None
+                
+                print(f"Removed server node: {server}")  # Debug print
+        except Exception as e:
+            print(f"Error in remove_server_node: {e}")
 
 
 
@@ -1737,10 +1785,16 @@ class IRCClient:
                     
                     # Close the socket
                     try:
+                        self.connections[server]['socket'].shutdown(socket.SHUT_RDWR)
                         self.connections[server]['socket'].close()
                     except:
                         pass
                     del self.connections[server]
+                    
+                    # Wait for receive thread to terminate
+                    if server in self.receive_threads:
+                        self.receive_threads[server].join(1.0)  # Wait up to 1 second
+                        del self.receive_threads[server]
                     
                     # Use the dedicated method to remove server node and all its children
                     self.remove_server_node(server)
@@ -2029,7 +2083,34 @@ class IRCClient:
                 except Exception as e:
                     self.add_status_message(f"Error handling channel list: {e}")
                 return
-                
+            
+            # Handle TOPIC messages
+            if 'TOPIC' in data:
+                try:
+                    parts = data.split()
+                    channel = parts[2]
+                    topic = data.split(':', 2)[-1].strip()
+                    channel_key = f"{server}:{channel}"
+                    
+                    if channel_key in self.channel_windows:
+                        self.channel_windows[channel_key].update_topic(topic)
+                        self.channel_windows[channel_key].add_message(f"* Topic changed to: {topic}")
+                except Exception as e:
+                    self.add_status_message(f"Error handling topic: {e}")
+                    
+            # Handle 332 (topic on join) messages
+            elif ' 332 ' in data:  # RPL_TOPIC
+                try:
+                    parts = data.split()
+                    channel = parts[3]
+                    topic = data.split(':', 2)[-1].strip()
+                    channel_key = f"{server}:{channel}"
+                    
+                    if channel_key in self.channel_windows:
+                        self.channel_windows[channel_key].update_topic(topic)
+                except Exception as e:
+                    self.add_status_message(f"Error handling topic on join: {e}")
+            
             # Handle end of LIST (323)
             if ' 323 ' in data:  # End of channel list
                 self.add_status_message("End of channel list")
@@ -2266,10 +2347,14 @@ class IRCClient:
 
     def receive_messages(self, server):
         """Receive messages from a specific server"""
+        connection_errors = 0
+        max_connection_errors = 3
+        reconnect_delay = 5
+        
         while self.running:
             try:
                 with self.lock:
-                    if server not in self.connections:
+                    if server not in self.connections or self.disconnecting:
                         break
                     
                     conn = self.connections[server]
@@ -2281,14 +2366,30 @@ class IRCClient:
                             raise ConnectionError("Server closed connection")
                     except (socket.timeout, TimeoutError):
                         raise ConnectionError("Connection timed out")
+                    except (socket.error, OSError) as e:
+                        if e.errno == 9:  # Bad file descriptor
+                            self.add_status_message(f"Socket for {server} was closed")
+                            break
+                        elif e.errno == 54:  # Connection reset by peer
+                            self.add_status_message(f"Connection reset by {server}, attempting to reconnect...")
+                            raise ConnectionResetError(f"Connection reset: {e}")
+                        raise ConnectionError(f"Socket error: {e}")
                     except UnicodeDecodeError:
                         try:
                             data = conn['socket'].recv(4096).decode('latin-1')
-                        except:
-                            data = conn['socket'].recv(4096).decode('iso-8859-1')
+                        except (socket.error, OSError) as e:
+                            if e.errno == 9:  # Bad file descriptor
+                                break
+                            elif e.errno == 54:  # Connection reset by peer
+                                self.add_status_message(f"Connection reset by {server}, attempting to reconnect...")
+                                raise ConnectionResetError(f"Connection reset: {e}")
+                            raise
                     
                     if not data:
                         break
+                    
+                    # Reset connection error counter on successful data
+                    connection_errors = 0
                     
                     # Process received data
                     conn['buffer'] += data
@@ -2299,6 +2400,57 @@ class IRCClient:
                         if line:  # Only process non-empty lines
                             self.handle_server_message(line, server)
                         
+            except ConnectionResetError as e:
+                self.add_status_message(f"Connection reset for {server}: {e}")
+                # Try to reconnect
+                connection_errors += 1
+                if connection_errors <= max_connection_errors:
+                    # Clean up the old connection
+                    with self.lock:
+                        if server in self.connections:
+                            try:
+                                self.connections[server]['socket'].close()
+                            except:
+                                pass
+                            
+                            # Save current state before reconnecting
+                            old_nickname = self.connections[server]['nickname']
+                            old_channels = list(self.connections[server]['channels'].keys())
+                            del self.connections[server]
+                            
+                            # Don't remove server node during reconnection attempts
+                            if server in self.receive_threads:
+                                del self.receive_threads[server]
+                    
+                    # Wait before reconnecting
+                    time.sleep(reconnect_delay)
+                    
+                    # Try to reconnect outside of the lock
+                    if self.running and not self.disconnecting:
+                        self.add_status_message(f"Attempting to reconnect to {server} (try {connection_errors}/{max_connection_errors})...")
+                        port = 6667  # Default port, could be stored in connection info
+                        success = self.connect_to_server(server, port, old_nickname)
+                        
+                        if success:
+                            # Rejoin channels
+                            for channel in old_channels:
+                                self.send_command(f"JOIN {channel}", server)
+                            continue
+                else:
+                    self.add_status_message(f"Failed to reconnect to {server} after {max_connection_errors} attempts")
+                    # Clean up as usual after max retries
+                    with self.lock:
+                        if server in self.connections:
+                            try:
+                                self.connections[server]['socket'].close()
+                            except:
+                                pass
+                            del self.connections[server]
+                            if server in self.receive_threads:
+                                del self.receive_threads[server]
+                            self.remove_server_node(server)
+                    break
+                
             except Exception as e:
                 self.add_status_message(f"Error receiving from {server}: {e}")
                 # Clean up the connection
@@ -2309,9 +2461,16 @@ class IRCClient:
                         except:
                             pass
                         del self.connections[server]
+                        if server in self.receive_threads:
+                            del self.receive_threads[server]
                         self.remove_server_node(server)
                 break
-                
+            
+        # Thread exit cleanup
+        with self.lock:
+            if server in self.receive_threads:
+                del self.receive_threads[server]
+
     def connect_to_server(self, server, port, nickname):
         """Connect to a new server"""
         try:
@@ -2320,9 +2479,27 @@ class IRCClient:
                 self.add_status_message(f"Already connected to {server}")
                 return False
 
-            # Create new socket connection (simplified)
+            # Create new socket connection
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)  # Enable TCP keepalive
+            
+            # Configure TCP keepalive parameters if available
+            # These help detect dead connections faster
+            if hasattr(socket, 'TCP_KEEPIDLE'):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)  # Start sending after 60 seconds
+            if hasattr(socket, 'TCP_KEEPINTVL'):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)  # Send every 30 seconds
+            if hasattr(socket, 'TCP_KEEPCNT'):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)  # 3 failed probes = dead
+                
+            # For macOS (Darwin)
+            if hasattr(socket, 'TCP_KEEPALIVE'):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPALIVE, 60)
+                
+            # Connect with timeout
+            sock.settimeout(30)  # 30 second connection timeout
             sock.connect((server, port))
+            sock.settimeout(None)  # Reset timeout for normal operation
             
             # Store connection info
             self.connections[server] = {
@@ -2332,8 +2509,9 @@ class IRCClient:
                 'buffer': ""
             }
             
-            # Add server to tree
-            self.add_server_node(server)
+            # Add server to tree if not already there
+            if server not in self.server_nodes:
+                self.add_server_node(server)
             self.current_server = server
             
             # Send initial commands
@@ -2344,6 +2522,7 @@ class IRCClient:
             receive_thread = threading.Thread(target=self.receive_messages, args=(server,))
             receive_thread.daemon = True
             receive_thread.start()
+            self.receive_threads[server] = receive_thread
             
             self.add_status_message(f"Connected to {server}")
             return True
@@ -2352,7 +2531,8 @@ class IRCClient:
             self.add_status_message(f"Failed to connect to {server}: {e}")
             if server in self.connections:
                 del self.connections[server]
-            if server in self.server_nodes:
+            if server in self.server_nodes and not self.disconnecting:
+                # Only remove server node if we're not in the middle of reconnecting
                 self.remove_server_node(server)
             return False
                 
@@ -2364,13 +2544,18 @@ class IRCClient:
         finally:
             # Cleanup when the program exits
             self.running = False
+            self.disconnecting = True
             with self.lock:
                 for server, conn in self.connections.items():
                     try:
                         conn['socket'].close()
                     except:
                         pass
-
+                
+                # Wait for all receive threads to terminate
+                for server, thread in list(self.receive_threads.items()):
+                    thread.join(0.5)  # Short timeout 
+                    
 def main():
     server = "irc.libera.chat"
     port = 6667
