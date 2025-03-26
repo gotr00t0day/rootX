@@ -853,7 +853,8 @@ class PrivateWindow:
     def __init__(self, irc_client, username, server):
         self.irc_client = irc_client
         self.username = username
-        self.server = server  # Add server attribute
+        self.server = server  # Store server information
+        self.pm_key = f"{server}:{username}"  # Create a unique key for this PM window
         
         # Create window
         self.window = tk.Toplevel()
@@ -902,14 +903,14 @@ class PrivateWindow:
 
     def on_closing(self):
         # Remove PM node from correct server's tree section
-        server_data = self.irc_client.server_nodes.get(self.server)  # Use self.server instead
+        server_data = self.irc_client.server_nodes.get(self.server)
         if server_data and self.username in server_data['private_msgs']:
             self.irc_client.network_tree.delete(server_data['private_msgs'][self.username])
             del server_data['private_msgs'][self.username]
                 
-        # Clean up private windows dict
-        if self.username in self.irc_client.private_windows:
-            del self.irc_client.private_windows[self.username]
+        # Clean up private windows dict using the PM key
+        if self.pm_key in self.irc_client.private_windows:
+            del self.irc_client.private_windows[self.pm_key]
             
         # Destroy window
         self.window.destroy()
@@ -917,10 +918,12 @@ class PrivateWindow:
     def send_message(self, event=None):
         message = self.message_input.get()
         if message:
+            # Pass the server along with the message
             self.irc_client.send_private_message(self.username, message, self.server)
-            self.add_message(f"{self.irc_client.connections[self.server]['nickname']}: {message}")
+            current_nick = self.irc_client.connections[self.server]['nickname']
+            self.add_message(f"{current_nick}: {message}")
             self.message_input.delete(0, tk.END)
-            
+
     def add_message(self, message):
         timestamp = datetime.now().strftime("[%H:%M:%S]")
         self.chat_display.insert(tk.END, timestamp + " ", 'timestamp')
@@ -940,31 +943,143 @@ class PrivateWindow:
         
 
 class IRCClient:
-    def __init__(self, default_server, default_port, default_nickname):
-        """Initialize the IRC client"""
+    def __init__(self, master, server=None, port=6667, nickname="PythonUser"):
+        # Client version
         self.version = "rootX IRC Client v1.0"
-        self.default_server = default_server
-        self.default_port = default_port
-        self.default_nickname = default_nickname
-        self.connections = {}
-        self.server_nodes = {}
-        self.channel_windows = {}
-        self.private_windows = {}
-        self.status_window = None
-        self.current_server = None
-        self.running = True
-        self.lock = threading.Lock()
-        self.disconnecting = False
-        self.receive_threads = {}  # Track receive threads by server
         
-        # Initialize preferences
+        self.master = master
+        self.connections = {}  # Dictionary to store connections by server name
+        self.current_server = None  # Track which server is currently active
+        self.servers = []  # List of servers to connect to
+        
+        # Initialize status_display to None to prevent exceptions
+        self.status_display = None
+        
+        # Preferences dictionary
         self.preferences = {
             'theme': 'default'
         }
         
-        # Create GUI
+        # Thread synchronization
+        self.lock = threading.Lock()
+        self.running = True
+        self.disconnecting = False
+        
+        # Windows dictionary - keyed by unique identifiers
+        self.channel_windows = {}  # Use server:channel as key
+        self.private_windows = {}  # Use server:nickname as key
+        self.status_window = None
+        
+        # Pending connection attempts
+        self.connection_attempts = {}
+        self.reconnect_attempts = {}
+        self.max_reconnect_attempts = 3
+        
+        # Pending operations
+        self.pending_bans = {}  # Track pending ban operations by target_nick
+        
+        # Create main window
+        self.window = master
+        self.window.title("Multi-Server IRC Client")
+        
+        # Create paned window
+        self.paned_window = ttk.PanedWindow(self.window, orient=tk.HORIZONTAL)
+        self.paned_window.pack(fill=tk.BOTH, expand=True)
+        
+        # Create network tree frame
+        self.network_frame = ttk.Frame(self.paned_window, width=200)
+        self.paned_window.add(self.network_frame, weight=1)
+        
+        # Create network tree
+        self.network_tree = ttk.Treeview(self.network_frame, selectmode='browse')
+        self.network_tree.heading('#0', text='Network', anchor='w')
+        self.network_tree.pack(fill=tk.BOTH, expand=True)
+        
+        # Bind event for selecting a node
+        self.network_tree.bind('<<TreeviewSelect>>', self.on_tree_select)
+        
+        # Create right content frame
+        self.content_frame = ttk.Frame(self.paned_window)
+        self.paned_window.add(self.content_frame, weight=4)
+        
+        # State for node tracking
+        self.server_nodes = {}  # Dictionary to track server nodes and their channels
+        
+        # Create context menu for tree
+        self.tree_menu = tk.Menu(self.window, tearoff=0)
+        self.tree_menu.add_command(label="Connect", command=self.connect_selected)
+        self.tree_menu.add_command(label="Disconnect", command=self.disconnect_selected)
+        self.tree_menu.add_separator()
+        self.tree_menu.add_command(label="Join Channel", command=self.show_join_dialog)
+        self.tree_menu.add_command(label="Close Window", command=self.close_selected)
+        
+        # Bind context menu
+        self.network_tree.bind("<Button-3>", self.show_tree_menu)
+        
+        # Load icons for tree - Create empty PhotoImage objects as fallbacks
+        self.server_icon = tk.PhotoImage(width=1, height=1)
+        self.channel_icon = tk.PhotoImage(width=1, height=1)
+        self.pm_icon = tk.PhotoImage(width=1, height=1)
+        
+        try:
+            # Load icons if available
+            from PIL import Image, ImageTk
+            try:
+                server_img = Image.open("server.png").resize((16, 16))
+                channel_img = Image.open("channel.png").resize((16, 16))
+                pm_img = Image.open("pm.png").resize((16, 16))
+                
+                self.server_icon = ImageTk.PhotoImage(server_img)
+                self.channel_icon = ImageTk.PhotoImage(channel_img)
+                self.pm_icon = ImageTk.PhotoImage(pm_img)
+            except FileNotFoundError as e:
+                print(f"Error loading icons: {e}")
+                print("Using default empty icons")
+        except ImportError:
+            print("PIL not available, using default empty icons")
+        
+        # Create main menu
+        self.menu_bar = tk.Menu(self.window)
+        self.window.config(menu=self.menu_bar)
+        
+        # File menu
+        self.file_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.file_menu.add_command(label="Connect to Server...", command=self.show_connect_dialog)
+        self.file_menu.add_command(label="Disconnect", command=self.show_disconnect_dialog)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Exit", command=self.on_exit)
+        self.menu_bar.add_cascade(label="File", menu=self.file_menu)
+        
+        # Channel menu
+        self.channel_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.channel_menu.add_command(label="Join Channel...", command=self.show_join_dialog)
+        self.channel_menu.add_command(label="Channel List", command=self.show_channel_list)
+        self.menu_bar.add_cascade(label="Channel", menu=self.channel_menu)
+        
+        # Server menu
+        self.server_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.server_menu.add_command(label="Server Settings", command=self.show_server_settings)
+        self.menu_bar.add_cascade(label="Server", menu=self.server_menu)
+        
+        # Help menu
+        self.help_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.help_menu.add_command(label="About", command=self.show_about_dialog)
+        self.menu_bar.add_cascade(label="Help", menu=self.help_menu)
+        
+        # Create status bar
+        self.status_bar = ttk.Label(self.window, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Thread for receiving data
+        self.receive_threads = {}
+        
+        # Create status window first so we can show messages
         self.create_status_window()
         
+        # Connect to default server if provided
+        if server:
+            self.connect_to_server(server, port, nickname)
+
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
         self.preferences['theme'] = theme_name
@@ -1010,59 +1125,51 @@ class IRCClient:
                 self.disconnecting = False
 
     def remove_server_node(self, server):
-        """Remove a server node and all its children from the tree"""
-        try:
-            if server in self.server_nodes:
-                # Delete all channel windows for this server first
-                channels_to_remove = []
-                for channel_key in list(self.channel_windows.keys()):  # Create a list copy
-                    if channel_key.startswith(f"{server}:"):
-                        channels_to_remove.append(channel_key)
-                
-                # Safely destroy channel windows
-                for channel_key in channels_to_remove:
+        """Remove a server node and all its child nodes from the tree"""
+        if server in self.server_nodes:
+            # Get server data
+            server_data = self.server_nodes[server]
+            
+            # Close all channel windows for this server
+            channels_to_close = [
+                key for key in list(self.channel_windows.keys())
+                if key.startswith(f"{server}:")
+            ]
+            for channel_key in channels_to_close:
+                if channel_key in self.channel_windows:
                     try:
-                        if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
-                            if window and window.window:
-                                window.window.destroy()
-                            del self.channel_windows[channel_key]
+                        self.channel_windows[channel_key].on_closing()
                     except Exception as e:
-                        print(f"Error removing channel window {channel_key}: {e}")
-
-                # Delete all PM windows for this server
-                pms_to_remove = []
-                for username, window in list(self.private_windows.items()):  # Create a list copy
-                    if window.server == server:
-                        pms_to_remove.append(username)
-                
-                # Safely destroy PM windows
-                for username in pms_to_remove:
+                        print(f"Error closing channel window {channel_key}: {e}")
+            
+            # Close all PM windows for this server
+            pms_to_close = [
+                key for key in list(self.private_windows.keys())
+                if key.startswith(f"{server}:")
+            ]
+            for pm_key in pms_to_close:
+                if pm_key in self.private_windows:
                     try:
-                        if username in self.private_windows:
-                            window = self.private_windows[username]
-                            if window and window.window:
-                                window.window.destroy()
-                            del self.private_windows[username]
+                        self.private_windows[pm_key].on_closing()
                     except Exception as e:
-                        print(f"Error removing PM window for {username}: {e}")
-
-                # Remove from tree and clean up server_nodes
-                if server in self.server_nodes:
-                    try:
-                        self.network_tree.delete(self.server_nodes[server]['node'])
-                        del self.server_nodes[server]
-                    except Exception as e:
-                        print(f"Error removing server node from tree: {e}")
+                        print(f"Error closing PM window {pm_key}: {e}")
+            
+            # Delete the server node from the tree
+            try:
+                self.network_tree.delete(server_data['node'])
+            except Exception as e:
+                print(f"Error deleting server node: {e}")
+            
+            # Remove from server_nodes dictionary
+            del self.server_nodes[server]
+            
+            # If this was the current server, set current_server to None
+            if self.current_server == server:
+                self.current_server = None
                 
-                if server == self.current_server:
-                    self.current_server = None
-                
-                print(f"Removed server node: {server}")  # Debug print
-        except Exception as e:
-            print(f"Error in remove_server_node: {e}")
-
-
+                # If there are other servers, set one as current
+                if self.connections:
+                    self.current_server = next(iter(self.connections.keys()))
 
     def add_server_node(self, server):
         """Add a server node to the tree"""
@@ -1097,22 +1204,39 @@ class IRCClient:
                 print(f"Added channel node with icon: {channel}")  # Debug print
 
     def add_pm_node(self, username, server):
-        """Add a private message node to the correct server in the tree"""
-        if server in self.server_nodes:
-            server_data = self.server_nodes[server]
-            if 'private_msgs' not in server_data:
-                server_data['private_msgs'] = {}
+        """Add a private message node to the network tree under the correct server"""
+        if server not in self.server_nodes:
+            # Server node doesn't exist, create it first
+            server_node = self.network_tree.insert("", "end", text=server, tags=("server",))
+            self.server_nodes[server] = {
+                'node': server_node,
+                'channels': {},
+                'private_msgs': {}
+            }
+        
+        # Get server node data
+        server_data = self.server_nodes[server]
+        
+        # Add to private messages section
+        if username not in server_data.get('private_msgs', {}):
+            if 'private_msgs_node' not in server_data:
+                # Create 'Private Messages' category if it doesn't exist
+                server_data['private_msgs_node'] = self.network_tree.insert(
+                    server_data['node'], "end", text="Private Messages", tags=("category",)
+                )
+                # Initialize private_msgs dict if needed
+                if 'private_msgs' not in server_data:
+                    server_data['private_msgs'] = {}
             
-            pm_text = f" PM: {username}"
-            pm_id = self.network_tree.insert(
-                server_data['node'], 
-                'end', 
-                text=pm_text, 
-                tags=('pm',),
-                image=self.pm_icon
+            # Add the PM node
+            pm_node = self.network_tree.insert(
+                server_data['private_msgs_node'], "end", text=username, tags=("private",)
             )
-            server_data['private_msgs'][username] = pm_id
-            print(f"Added PM node with icon: {username}")  # Debug print
+            server_data['private_msgs'][username] = pm_node
+            
+            # Store the PM key for reference
+            pm_key = f"{server}:{username}"
+            self.network_tree.item(pm_node, values=(pm_key,))
 
     def remove_channel_node(self, channel):
         """Remove a channel node"""
@@ -1185,30 +1309,38 @@ class IRCClient:
 
 
     def create_private_window(self, username, server=None):
-        """Create a new private message window"""
-        if server is None:
+        # If server is not specified, use current server
+        if not server:
             server = self.current_server
             
-        # Create a unique key for the private window
+        if not server:
+            self.add_status_message("Not connected to any server")
+            return None
+            
+        # Create a unique key for the PM window
         pm_key = f"{server}:{username}"
         
-        if username not in self.private_windows:
-            self.private_windows[username] = PrivateWindow(self, username, server)
-            # Only add to tree if it doesn't exist
-            server_data = self.server_nodes.get(server)
-            if server_data and username not in server_data.get('private_msgs', {}):
-                self.add_pm_node(username, server)
-            self.add_status_message(f"Started private chat with {username} on {server}")
-        else:
-            # If window exists, just show it
-            self.private_windows[username].window.deiconify()
-            self.private_windows[username].window.lift()
-
-
-
-    def send_private_message(self, username, message, server):
-        self.send_command(f"PRIVMSG {username} :{message}", server)
+        # Check if PM window already exists
+        if pm_key in self.private_windows:
+            # Window exists, toggle visibility
+            window = self.private_windows[pm_key]
+            # Deiconify if minimized
+            window.window.deiconify()
+            window.window.lift()
+            return window
+            
+        # Create new PM window
+        window = PrivateWindow(self, username, server)
+        self.private_windows[pm_key] = window
+        return window
         
+    def send_private_message(self, username, message, server):
+        if server not in self.connections:
+            self.add_status_message(f"Not connected to server: {server}")
+            return
+            
+        conn = self.connections[server]
+        conn['socket'].send(f"PRIVMSG {username} :{message}\r\n".encode())
         
     def create_channel_window(self, channel, server):
         """Create a new channel window"""
@@ -1222,144 +1354,23 @@ class IRCClient:
 
 
     def create_status_window(self):
-        self.status_window = tk.Tk()
-        self.status_window.title("rootX - Status")
-        self.status_window.geometry("1000x600")
-
-        # Create menu bar
-        self.menubar = tk.Menu(self.status_window)
-        self.status_window.config(menu=self.menubar)
-        
-        # rootX menu with updated commands
-        self.rootx_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="rootX", menu=self.rootx_menu)
-        self.rootx_menu.add_command(label="Connect to Server...", command=self.show_connect_dialog)
-        self.rootx_menu.add_command(label="Disconnect from Server...", command=self.show_disconnect_dialog)
-        self.rootx_menu.add_separator()
-        self.rootx_menu.add_command(label="Exit", command=self.status_window.quit)
-        
-        # View menu
-        self.view_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="View", menu=self.view_menu)
-        self.view_menu.add_command(label="Network Tree")
-        self.view_menu.add_command(label="Status Window")
-        
-        # Server menu with updated commands
-        self.server_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Server", menu=self.server_menu)
-        self.server_menu.add_command(label="Join Channel...", command=self.show_join_dialog)
-        self.server_menu.add_command(label="List Channels", command=self.show_channel_list)
-        self.server_menu.add_separator()
-        self.server_menu.add_command(label="Server Settings...", command=self.show_server_settings)
-
-        # Settings menu
-        self.settings_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Settings", menu=self.settings_menu)
-        self.settings_menu.add_command(label="Preferences...")
-        self.settings_menu.add_command(label="Theme Settings...")
-        
-        # Help menu
-        self.help_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Help", menu=self.help_menu)
-        self.help_menu.add_command(label="Documentation")
-        self.help_menu.add_separator()
-        self.help_menu.add_command(label="About rootX", command=self.show_about_dialog)
-
-        # Create main frame to hold everything
-        main_frame = ttk.Frame(self.status_window)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Create main container with paned window
-        self.main_container = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        self.main_container.pack(fill=tk.BOTH, expand=True)
-        
-        # Create left frame for network tree
-        self.left_frame = ttk.Frame(self.main_container)
-        self.main_container.add(self.left_frame, weight=1)
-
-
-
-        # Load icons from files with error checking
-        import os
-        icons_dir = "icons"
-        
-        # Create icons directory if it doesn't exist
-        if not os.path.exists(icons_dir):
-            os.makedirs(icons_dir)
-            print(f"Created icons directory: {icons_dir}")
-        
-        # Define icon paths
-        server_icon_path = os.path.join(icons_dir, "server.png")
-        channel_icon_path = os.path.join(icons_dir, "channel.png")
-        pm_icon_path = os.path.join(icons_dir, "pm.png")
-
-        try:
-            # Check if icons exist
-            if not all(os.path.exists(p) for p in [server_icon_path, channel_icon_path, pm_icon_path]):
-                print("Some icons are missing. Downloading icons...")
-                import urllib.request
-                
-                # Download icons
-                icons = {
-                    server_icon_path: "https://raw.githubusercontent.com/feathericons/feather/master/icons/server.png",
-                    channel_icon_path: "https://raw.githubusercontent.com/feathericons/feather/master/icons/hash.png",
-                    pm_icon_path: "https://raw.githubusercontent.com/feathericons/feather/master/icons/message-circle.png"
-                }
-                
-                for path, url in icons.items():
-                    if not os.path.exists(path):
-                        print(f"Downloading {path}...")
-                        urllib.request.urlretrieve(url, path)
-            
-            # Load icons
-            self.server_icon = tk.PhotoImage(file=server_icon_path).subsample(2, 2)  # Adjusted scale
-            self.channel_icon = tk.PhotoImage(file=channel_icon_path).subsample(2, 2)
-            self.pm_icon = tk.PhotoImage(file=pm_icon_path).subsample(2, 2)
-            print("Icons loaded successfully")
-            
-        except Exception as e:
-            print(f"Error loading icons: {e}")
-            # Fallback to simple colored dots if icon loading fails
-            self.server_icon = tk.PhotoImage(data='R0lGODlhDQANAIAAAP/////gaAAAACH5BAEAAAEALAAAAAANABAAAAIZjI+py+0Po5y02ouz3rz7D4biSJbmiabqUQAAOw==')
-            self.channel_icon = tk.PhotoImage(data='R0lGODlhDQANAIAAAP//AAAAACH5BAEAAAEALAAAAAANABAAAAIZjI+py+0Po5y02ouz3rz7D4biSJbmiabqUQAAOw==')
-            self.pm_icon = tk.PhotoImage(data='R0lGODlhDQANAIAAAP//AP//ACH5BAEAAAEALAAAAAANABAAAAIZjI+py+0Po5y02ouz3rz7D4biSJbmiabqUQAAOw==')
-            print("Using fallback icons")
-        try:
-            # Load icons with larger subsample values to make them smaller
-            self.server_icon = tk.PhotoImage(file=server_icon_path).subsample(8, 8)  # Changed from 2,2 to 4,4
-            self.channel_icon = tk.PhotoImage(file=channel_icon_path).subsample(8, 8)
-            self.pm_icon = tk.PhotoImage(file=pm_icon_path).subsample(8, 8)
-            print("Icons loaded successfully")
-            
-        except Exception as e:
-            print(f"Error loading icons: {e}")
-            # Fallback icons remain the same...
-
-        # Create network tree with smaller row height
-        style = ttk.Style()
-        style.configure("Treeview", rowheight=20)  # Changed from 25 to 20
-
-        self.network_tree = ttk.Treeview(self.left_frame, show='tree', style="Treeview")
-        self.network_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # Add scrollbar for network tree
-        tree_scroll = ttk.Scrollbar(self.left_frame, orient="vertical", command=self.network_tree.yview)
-        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.network_tree.configure(yscrollcommand=tree_scroll.set)
-        
-        # Bind double-click event
-        self.network_tree.bind('<Double-Button-1>', self.toggle_window_from_tree)
-        
-        # Create right frame for status messages and input
-        self.right_frame = ttk.Frame(self.main_container)
-        self.main_container.add(self.right_frame, weight=2)
+        """Create the status window in the content frame"""
+        # Create status window
+        self.status_window = ttk.Frame(self.content_frame)
+        self.status_window.pack(fill=tk.BOTH, expand=True)
         
         # Create status display
-        self.status_display = scrolledtext.ScrolledText(self.right_frame, wrap=tk.WORD)
+        self.status_display = scrolledtext.ScrolledText(self.status_window, wrap=tk.WORD)
         self.status_display.pack(fill=tk.BOTH, expand=True)
         
+        # Configure tags
+        self.status_display.tag_configure('timestamp', foreground='gray')
+        self.status_display.tag_configure('status', foreground='green')
+        self.status_display.tag_configure('error', foreground='red')
+        self.status_display.tag_configure('notice', foreground='blue')
+        
         # Create input frame
-        self.input_frame = ttk.Frame(self.right_frame)
+        self.input_frame = ttk.Frame(self.status_window)
         self.input_frame.pack(fill=tk.X, pady=5)
         
         # Create command input
@@ -1367,22 +1378,10 @@ class IRCClient:
         self.command_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.command_input.bind('<Return>', self.handle_status_input)
         
-        # Create send button
-        self.send_button = ttk.Button(self.input_frame, text="Send", command=self.handle_status_command)
-        self.send_button.pack(side=tk.RIGHT, padx=5)
-        
-        # Configure text tags
-        self.status_display.tag_configure('timestamp', foreground='gray')
-        self.status_display.tag_configure('message', foreground='white')
-        
-        # Add initial instructions
-        self.add_status_message("Welcome to rootX IRC Client!")
-        self.add_status_message("Use /server <server> [port] - Connect to a new server")
-        self.add_status_message("Use /join #channel to join a channel")
-        self.add_status_message("Use /list to list channels (Be careful with this command)")
-        self.add_status_message("Use /quit to exit")
-        self.add_status_message("Use /help for help")
-
+        # Welcome message
+        self.add_status_message(f"Welcome to {self.version}")
+        self.add_status_message("Use /server hostname port nickname to connect to an IRC server")
+        self.add_status_message("Example: /server irc.libera.chat 6667 YourNickname")
 
     def show_about_dialog(self):
         """Show the About rootX dialog"""
@@ -1488,299 +1487,61 @@ class IRCClient:
         if not self.current_server:
             self.add_status_message("Not connected to any server")
             return
-
-        settings_window = tk.Toplevel(self.status_window)
-        settings_window.title(f"Server Settings - {self.current_server}")
-        settings_window.geometry("500x500")
-        settings_window.transient(self.status_window)
-        settings_window.grab_set()
-
-        # Create notebook for tabs
-        notebook = ttk.Notebook(settings_window)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        # General Settings Tab
-        general_frame = ttk.Frame(notebook)
-        notebook.add(general_frame, text="General")
-
-        # Current connection info
-        ttk.Label(general_frame, text="Current Connection", font=("", 10, "bold")).pack(pady=10)
-        ttk.Label(general_frame, text=f"Server: {self.current_server}").pack(pady=2)
-        ttk.Label(general_frame, text=f"Nickname: {self.connections[self.current_server]['nickname']}").pack(pady=2)
-
-        # Nickname change frame
-        nick_frame = ttk.LabelFrame(general_frame, text="Change Nickname")
-        nick_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        ttk.Label(nick_frame, text="New Nickname:").pack(pady=5)
-        new_nick_entry = ttk.Entry(nick_frame)
-        new_nick_entry.pack(padx=20, fill=tk.X, pady=5)
-
-        def change_nickname():
-            new_nick = new_nick_entry.get().strip()
-            if new_nick:
-                self.send_command(f"NICK {new_nick}", self.current_server)
-                new_nick_entry.delete(0, tk.END)
-
-        ttk.Button(nick_frame, text="Change Nickname", command=change_nickname).pack(pady=5)
-
-        # Away Status frame
-        away_frame = ttk.LabelFrame(general_frame, text="Away Status")
-        away_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        away_message = ttk.Entry(away_frame)
-        away_message.pack(padx=20, fill=tk.X, pady=5)
-
-        def set_away():
-            message = away_message.get().strip()
-            if message:
-                self.send_command(f"AWAY :{message}", self.current_server)
-            else:
-                self.send_command("AWAY", self.current_server)  # Remove away status
-
-        ttk.Button(away_frame, text="Set Away", command=set_away).pack(side=tk.LEFT, padx=5, pady=5)
-        ttk.Button(away_frame, text="Return", 
-                command=lambda: self.send_command("AWAY", self.current_server)).pack(side=tk.LEFT, pady=5)
-
-        # Channel Settings Tab
-        channel_frame = ttk.Frame(notebook)
-        notebook.add(channel_frame, text="Channels")
-
-        # Auto-join channels
-        ttk.Label(channel_frame, text="Auto-join Channels", font=("", 10, "bold")).pack(pady=10)
-        channels_list = tk.Listbox(channel_frame, height=6)
-        channels_list.pack(fill=tk.X, padx=10)
-
-        # Add current channels
-        if self.current_server in self.server_nodes:
-            for channel in self.server_nodes[self.current_server]['channels'].keys():
-                channels_list.insert(tk.END, channel)
-
-        # Buttons frame
-        buttons_frame = ttk.Frame(channel_frame)
-        buttons_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        def add_channel():
-            channel = channel_entry.get().strip()
-            if channel:
-                if not channel.startswith('#'):
-                    channel = '#' + channel
-                if channel not in channels_list.get(0, tk.END):
-                    channels_list.insert(tk.END, channel)
-                channel_entry.delete(0, tk.END)
-
-        def remove_channel():
-            selection = channels_list.curselection()
-            if selection:
-                channels_list.delete(selection)
-
-        channel_entry = ttk.Entry(buttons_frame)
-        channel_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        ttk.Button(buttons_frame, text="Add", command=add_channel).pack(side=tk.LEFT, padx=2)
-        ttk.Button(buttons_frame, text="Remove", command=remove_channel).pack(side=tk.LEFT, padx=2)
-
-        # Update the menu command to show settings
-        self.server_menu.entryconfig("Server Settings...", command=self.show_server_settings)
-
-
+            
+        self.add_status_message(f"Current server: {self.current_server}")
+        if self.current_server in self.connections:
+            nickname = self.connections[self.current_server]['nickname']
+            self.add_status_message(f"Current nickname: {nickname}")
+            self.add_status_message("Use /nick NewNickname to change your nickname")
+            self.add_status_message("Use /join #channel to join a channel")
+            
     def show_join_dialog(self):
-        """Show dialog for joining a channel"""
+        """Show join channel dialog"""
         if not self.connections:
             self.add_status_message("Not connected to any server")
             return
             
-        join_window = tk.Toplevel(self.status_window)
-        join_window.title("Join Channel")
-        join_window.geometry("300x200")
-        join_window.transient(self.status_window)
-        join_window.grab_set()
+        servers_list = ", ".join(self.connections.keys())
+        self.add_status_message(f"Connected to: {servers_list}")
+        self.add_status_message("Use the /join command to join a channel")
+        self.add_status_message("Example: /join #python")
         
-        # Server selection
-        ttk.Label(join_window, text="Server:").pack(pady=5)
-        server_var = tk.StringVar(value=self.current_server)
-        server_combo = ttk.Combobox(join_window, textvariable=server_var)
-        server_combo['values'] = list(self.connections.keys())
-        server_combo.pack(padx=20, fill=tk.X)
-        
-        # Channel input
-        ttk.Label(join_window, text="Channel:").pack(pady=5)
-        channel_entry = ttk.Entry(join_window)
-        channel_entry.pack(padx=20, fill=tk.X)
-        channel_entry.insert(0, "#")
-        
-        def join():
-            server = server_var.get()
-            channel = channel_entry.get().strip()
-            if server and channel:
-                if channel[0] != '#':
-                    channel = '#' + channel
-                join_window.destroy()
-                # Set current server before joining
-                self.current_server = server
-                # Create channel window and add to tree
-                channel_key = f"{server}:{channel}"
-                if channel_key not in self.channel_windows:
-                    self.channel_windows[channel_key] = ChannelWindow(self, channel, server)
-                    self.add_channel_node(channel)  # Add to tree
-                # Send join command
-                self.send_command(f"JOIN {channel}", server)
-            else:
-                self.add_status_message("Please enter a channel name")
-        
-        ttk.Button(join_window, text="Join", command=join).pack(pady=20)
+        if len(self.connections) > 1:
+            self.add_status_message("To join a channel on a specific server:")
+            self.add_status_message("Example: /join #python irc.libera.chat")
 
     def show_channel_list(self):
-        """Show list of channels on current server"""
+        """Show channel list dialog"""
         if not self.current_server:
             self.add_status_message("Not connected to any server")
             return
             
-        # Create channel list window
-        list_window = tk.Toplevel(self.status_window)
-        list_window.title(f"Channel List - {self.current_server}")
-        list_window.geometry("600x400")
-        
-        frame = ttk.Frame(list_window)
-        frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Add search entry
-        search_frame = ttk.Frame(frame)
-        search_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=5)
-        search_entry = ttk.Entry(search_frame)
-        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        
-        channels_frame = ttk.Frame(frame)
-        channels_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Create listbox and scrollbars with buffer updates
-        scrollbar_y = ttk.Scrollbar(channels_frame)
-        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        scrollbar_x = ttk.Scrollbar(channels_frame, orient=tk.HORIZONTAL)
-        scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
-        
-        channels_list = tk.Listbox(
-            channels_frame,
-            yscrollcommand=scrollbar_y.set,
-            xscrollcommand=scrollbar_x.set
-        )
-        channels_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        scrollbar_y.config(command=channels_list.yview)
-        scrollbar_x.config(command=channels_list.xview)
-        
-        status_label = ttk.Label(frame, text="Requesting channel list...")
-        status_label.pack(pady=5)
-        
-        # Store channels and implement batch updates
-        all_channels = []
-        channel_buffer = []
-        BUFFER_SIZE = 50
-        update_after_id = None
-    
-        
-        def update_list(search_term=""):
-            channels_list.delete(0, tk.END)
-            filtered_channels = [ch for ch in all_channels if search_term.lower() in ch.lower()]
-            for channel in filtered_channels:
-                channels_list.insert(tk.END, channel)
-        
-        def delayed_search(*args):
-            nonlocal update_after_id
-            if update_after_id:
-                list_window.after_cancel(update_after_id)
-            update_after_id = list_window.after(300, lambda: update_list(search_entry.get()))
-        
-        search_entry.bind('<KeyRelease>', delayed_search)
-        
-        # Store channels and implement batch updates
-        all_channels = []  # Clear the list at the start
-        seen_channels = set()
-        channel_buffer = []
-        BUFFER_SIZE = 50
-        update_after_id = None
-
-        def handle_list_response(channel_info):
-            nonlocal channel_buffer
-            channel_text = f"{channel_info['channel']} ({channel_info['users']}) {channel_info['topic']}"
-            
-            # Use set to check for duplicates
-            if channel_info['channel'] not in seen_channels:
-                seen_channels.add(channel_info['channel'])
-                channel_buffer.append(channel_text)
-                
-                # Update in batches
-                if len(channel_buffer) >= BUFFER_SIZE:
-                    all_channels.extend(channel_buffer)
-                    if not search_entry.get():  # Only update display if no search filter
-                        for channel in channel_buffer:
-                            channels_list.insert(tk.END, channel)
-                    channel_buffer = []
-                    status_label.config(text=f"Found {len(all_channels)} channels")
-                    list_window.update_idletasks()
-        
-        # Set the callback for this instance
-        self.channel_list_callback = handle_list_response
-        
-        def join_selected(event):
-            selection = channels_list.curselection()
-            if selection:
-                channel = channels_list.get(selection[0]).split()[0]  # Get just the channel name
-                # Set current server before joining
-                self.current_server = self.current_server
-                # Create channel window and add to tree
-                channel_key = f"{self.current_server}:{channel}"
-                if channel_key not in self.channel_windows:
-                    self.channel_windows[channel_key] = ChannelWindow(self, channel, self.current_server)
-                    self.add_channel_node(channel)  # Add to tree
-                # Send join command
-                self.send_command(f"JOIN {channel}", self.current_server)
-        
-        channels_list.bind('<Double-Button-1>', join_selected)
-        
-        # Request channel list
+        self.add_status_message(f"Requesting channel list from {self.current_server}")
         self.send_command("LIST", self.current_server)
-
+        self.add_status_message("Use /list to get a list of channels")
+        
     def show_connect_dialog(self):
-        """Show dialog for connecting to a new server"""
-        connect_window = tk.Toplevel(self.status_window)
-        connect_window.title("Connect to Server")
-        connect_window.geometry("300x250")
-        connect_window.transient(self.status_window)
-        connect_window.grab_set()  # Make window modal
+        """Show a dialog to connect to a server"""
+        if self.connections:
+            servers_list = ", ".join(self.connections.keys())
+            self.add_status_message(f"Already connected to: {servers_list}")
+            self.add_status_message("Use /server hostname port nickname to connect to another server")
+            self.add_status_message("Example: /server irc.esper.net 6667 MyNick")
+            return
+            
+        self.add_status_message("Use /server hostname port nickname to connect")
+        self.add_status_message("Example: /server irc.libera.chat 6667 PythonUser")
         
-        # Create and pack widgets
-        ttk.Label(connect_window, text="Server:").pack(pady=5)
-        server_entry = ttk.Entry(connect_window)
-        server_entry.pack(padx=20, fill=tk.X)
-        server_entry.insert(0, "irc.libera.chat")
-        
-        ttk.Label(connect_window, text="Port:").pack(pady=5)
-        port_entry = ttk.Entry(connect_window)
-        port_entry.pack(padx=20, fill=tk.X)
-        port_entry.insert(0, "6667")
-        
-        ttk.Label(connect_window, text="Nickname:").pack(pady=5)
-        nick_entry = ttk.Entry(connect_window)
-        nick_entry.pack(padx=20, fill=tk.X)
-        nick_entry.insert(0, "PythonUser")
-        
-        def connect():
-            server = server_entry.get().strip()
-            try:
-                port = int(port_entry.get().strip())
-                nickname = nick_entry.get().strip()
-                
-                if server and port and nickname:
-                    connect_window.destroy()
-                    self.connect_to_server(server, port, nickname)
-                else:
-                    self.add_status_message("Please fill in all fields")
-            except ValueError:
-                self.add_status_message("Port must be a number")
-        
-        ttk.Button(connect_window, text="Connect", command=connect).pack(pady=20)
+    def show_disconnect_dialog(self):
+        """Show a dialog to disconnect from a server"""
+        if not self.connections:
+            self.add_status_message("Not connected to any server")
+            return
+            
+        servers_list = ", ".join(self.connections.keys())
+        self.add_status_message(f"Connected to: {servers_list}")
+        self.add_status_message("Use /quit [message] to disconnect")
+        self.add_status_message("Example: /quit Goodbye!")
 
     def disconnect_from_server(self, server):
         """Safely disconnect from a server"""
@@ -1814,39 +1575,6 @@ class IRCClient:
                     self.remove_server_node(server)
         finally:
             self.disconnecting = False
-
-    def show_disconnect_dialog(self):
-        """Show dialog for disconnecting from a server"""
-        if not self.connections:
-            self.add_status_message("No active connections")
-            return
-            
-        disconnect_window = tk.Toplevel(self.status_window)
-        disconnect_window.title("Disconnect from Server")
-        disconnect_window.geometry("300x200")
-        disconnect_window.transient(self.status_window)
-        disconnect_window.grab_set()  # Make window modal
-        
-        ttk.Label(disconnect_window, text="Select Server:").pack(pady=5)
-        
-        # Create listbox for servers
-        server_listbox = tk.Listbox(disconnect_window, height=5)
-        server_listbox.pack(padx=20, fill=tk.BOTH, expand=True)
-        
-        # Add connected servers to listbox
-        for server in self.connections.keys():
-            server_listbox.insert(tk.END, server)
-        
-        def disconnect():
-            selection = server_listbox.curselection()
-            if selection:
-                server = server_listbox.get(selection[0])
-                disconnect_window.destroy()
-                self.quit_server(server, "Disconnecting...")
-            else:
-                self.add_status_message("Please select a server")
-        
-        ttk.Button(disconnect_window, text="Disconnect", command=disconnect).pack(pady=20)
 
     def toggle_window(self, event):
         selection = self.windows_listbox.curselection()
@@ -1980,12 +1708,27 @@ class IRCClient:
             else:
                 self.add_status_message("Usage: /chanserv identify <password>")
                 
-    def add_status_message(self, message):
-        timestamp = datetime.now().strftime("[%H:%M:%S]")
-        self.status_display.insert(tk.END, f"{timestamp} {message}\n")
-        self.status_display.see(tk.END)
-        
-    
+    def add_status_message(self, message, tag='status'):
+        """Add a message to the status window"""
+        if not hasattr(self, 'status_display') or self.status_display is None:
+            print(f"Status: {message}")  # Fallback if GUI not initialized
+            return
+            
+        try:
+            timestamp = datetime.now().strftime("[%H:%M:%S]")
+            
+            # Insert with appropriate tag
+            self.status_display.insert(tk.END, timestamp + " ", 'timestamp')
+            self.status_display.insert(tk.END, message + "\n", tag)
+            self.status_display.see(tk.END)
+            
+            # Update status bar if available
+            if hasattr(self, 'status_bar') and self.status_bar is not None:
+                self.status_bar.config(text=message)
+        except Exception as e:
+            # If anything goes wrong, fallback to console output
+            print(f"Status: {message} (GUI error: {e})")
+
     def handle_server_message(self, data, server):
         try:
             if data.startswith('ERROR :') or 'Connection closed' in data:
@@ -2388,6 +2131,82 @@ class IRCClient:
                 except Exception as e:
                     self.add_status_message(f"Error handling nick: {e}")
 
+            # Handle PRIVMSG (including channel messages and private messages)
+            elif ' PRIVMSG ' in data:
+                try:
+                    # Parse sender and target
+                    parts = data.split(' PRIVMSG ', 1)
+                    sender_part = parts[0].lstrip(':')
+                    sender_nick = sender_part.split('!', 1)[0]
+                    
+                    # Get target and message
+                    target_msg = parts[1].split(' :', 1)
+                    target = target_msg[0]
+                    message = target_msg[1] if len(target_msg) > 1 else ""
+                    
+                    # Check if it's a CTCP message
+                    if message.startswith('\x01') and message.endswith('\x01'):
+                        # Handle CTCP
+                        ctcp_content = message.strip('\x01')
+                        ctcp_parts = ctcp_content.split(' ', 1)
+                        ctcp_cmd = ctcp_parts[0].upper()
+                        ctcp_args = ctcp_parts[1] if len(ctcp_parts) > 1 else ""
+                        
+                        if ctcp_cmd == 'ACTION':
+                            # Handle actions (/me commands)
+                            if target.startswith('#'):
+                                # Channel action
+                                channel_key = f"{server}:{target}"
+                                if channel_key in self.channel_windows:
+                                    self.channel_windows[channel_key].add_action(sender_nick, ctcp_args)
+                            else:
+                                # Private message action
+                                pm_key = f"{server}:{sender_nick}"
+                                if pm_key in self.private_windows:
+                                    self.private_windows[pm_key].add_action(sender_nick, ctcp_args)
+                                else:
+                                    # Create PM window
+                                    pm_window = self.create_private_window(sender_nick, server)
+                                    if pm_window:
+                                        pm_window.add_action(sender_nick, ctcp_args)
+                            return
+                        elif ctcp_cmd == 'VERSION':
+                            # Reply with client version
+                            self.send_command(f"NOTICE {sender_nick} :\x01VERSION Python IRC Client 1.0\x01", server)
+                            return
+                        elif ctcp_cmd == 'PING':
+                            # Reply with ping response
+                            self.send_command(f"NOTICE {sender_nick} :\x01PING {ctcp_args}\x01", server)
+                            return
+                        elif ctcp_cmd == 'TIME':
+                            # Reply with local time
+                            local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            self.send_command(f"NOTICE {sender_nick} :\x01TIME {local_time}\x01", server)
+                            return
+                        else:
+                            # Other CTCP commands - ignore for now
+                            print(f"Unhandled CTCP: {ctcp_cmd} from {sender_nick}")
+                            return
+                    
+                    # Handle regular messages
+                    if target.startswith('#'):
+                        # Channel message
+                        channel_key = f"{server}:{target}"
+                        if channel_key in self.channel_windows:
+                            self.channel_windows[channel_key].add_message(f"{sender_nick}: {message}")
+                    else:
+                        # Private message
+                        pm_key = f"{server}:{sender_nick}"
+                        if pm_key in self.private_windows:
+                            self.private_windows[pm_key].add_message(f"{sender_nick}: {message}")
+                        else:
+                            # Create new PM window for this message
+                            pm_window = self.create_private_window(sender_nick, server)
+                            if pm_window:
+                                pm_window.add_message(f"{sender_nick}: {message}")
+                except Exception as e:
+                    self.add_status_message(f"Error handling PRIVMSG: {e}")
+
         except Exception as e:
             self.add_status_message(f"Error parsing server message: {e}")
             
@@ -2402,197 +2221,69 @@ class IRCClient:
 
 
 
-    def receive_messages(self, server):
-        """Receive messages from a specific server"""
-        connection_errors = 0
-        max_connection_errors = 3
-        reconnect_delay = 5
-        
-        while self.running:
-            try:
-                with self.lock:
-                    if server not in self.connections or self.disconnecting:
-                        break
-                    
-                    conn = self.connections[server]
-                    try:
-                        # Set a timeout on the socket
-                        conn['socket'].settimeout(180)  # 3 minutes timeout
-                        data = conn['socket'].recv(4096).decode('utf-8')
-                        if not data:
-                            raise ConnectionError("Server closed connection")
-                    except (socket.timeout, TimeoutError):
-                        raise ConnectionError("Connection timed out")
-                    except (socket.error, OSError) as e:
-                        if e.errno == 9:  # Bad file descriptor
-                            self.add_status_message(f"Socket for {server} was closed")
-                            break
-                        elif e.errno == 54:  # Connection reset by peer
-                            self.add_status_message(f"Connection reset by {server}, attempting to reconnect...")
-                            raise ConnectionResetError(f"Connection reset: {e}")
-                        raise ConnectionError(f"Socket error: {e}")
-                    except UnicodeDecodeError:
-                        try:
-                            data = conn['socket'].recv(4096).decode('latin-1')
-                        except (socket.error, OSError) as e:
-                            if e.errno == 9:  # Bad file descriptor
-                                break
-                            elif e.errno == 54:  # Connection reset by peer
-                                self.add_status_message(f"Connection reset by {server}, attempting to reconnect...")
-                                raise ConnectionResetError(f"Connection reset: {e}")
-                            raise
-                    
-                    if not data:
-                        break
-                    
-                    # Reset connection error counter on successful data
-                    connection_errors = 0
-                    
-                    # Process received data
-                    conn['buffer'] += data
-                    lines = conn['buffer'].split('\r\n')
-                    conn['buffer'] = lines.pop()
-                    
-                    for line in lines:
-                        if line:  # Only process non-empty lines
-                            self.handle_server_message(line, server)
-                        
-            except ConnectionResetError as e:
-                self.add_status_message(f"Connection reset for {server}: {e}")
-                # Try to reconnect
-                connection_errors += 1
-                if connection_errors <= max_connection_errors:
-                    # Clean up the old connection
-                    with self.lock:
-                        if server in self.connections:
-                            try:
-                                self.connections[server]['socket'].close()
-                            except:
-                                pass
-                            
-                            # Save current state before reconnecting
-                            old_nickname = self.connections[server]['nickname']
-                            old_channels = list(self.connections[server]['channels'].keys())
-                            del self.connections[server]
-                            
-                            # Don't remove server node during reconnection attempts
-                            if server in self.receive_threads:
-                                del self.receive_threads[server]
-                    
-                    # Wait before reconnecting
-                    time.sleep(reconnect_delay)
-                    
-                    # Try to reconnect outside of the lock
-                    if self.running and not self.disconnecting:
-                        self.add_status_message(f"Attempting to reconnect to {server} (try {connection_errors}/{max_connection_errors})...")
-                        port = 6667  # Default port, could be stored in connection info
-                        success = self.connect_to_server(server, port, old_nickname)
-                        
-                        if success:
-                            # Rejoin channels
-                            for channel in old_channels:
-                                self.send_command(f"JOIN {channel}", server)
-                            continue
-                else:
-                    self.add_status_message(f"Failed to reconnect to {server} after {max_connection_errors} attempts")
-                    # Clean up as usual after max retries
-                    with self.lock:
-                        if server in self.connections:
-                            try:
-                                self.connections[server]['socket'].close()
-                            except:
-                                pass
-                            del self.connections[server]
-                            if server in self.receive_threads:
-                                del self.receive_threads[server]
-                            self.remove_server_node(server)
-                    break
-                
-            except Exception as e:
-                self.add_status_message(f"Error receiving from {server}: {e}")
-                # Clean up the connection
-                with self.lock:
-                    if server in self.connections:
-                        try:
-                            self.connections[server]['socket'].close()
-                        except:
-                            pass
-                        del self.connections[server]
-                        if server in self.receive_threads:
-                            del self.receive_threads[server]
-                        self.remove_server_node(server)
-                break
-            
-        # Thread exit cleanup
-        with self.lock:
-            if server in self.receive_threads:
-                del self.receive_threads[server]
-
     def connect_to_server(self, server, port, nickname):
-        """Connect to a new server"""
+        """Connect to an IRC server and set up the connection"""
         try:
-            # Check if already connected
+            # Check if already connected to this server
             if server in self.connections:
                 self.add_status_message(f"Already connected to {server}")
-                return False
-
-            # Create new socket connection
+                # Set as current server
+                self.current_server = server
+                return
+                
+            # Create socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)  # Enable TCP keepalive
-            
-            # Configure TCP keepalive parameters if available
-            # These help detect dead connections faster
-            if hasattr(socket, 'TCP_KEEPIDLE'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)  # Start sending after 60 seconds
-            if hasattr(socket, 'TCP_KEEPINTVL'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)  # Send every 30 seconds
-            if hasattr(socket, 'TCP_KEEPCNT'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)  # 3 failed probes = dead
-                
-            # For macOS (Darwin)
-            if hasattr(socket, 'TCP_KEEPALIVE'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPALIVE, 60)
-                
-            # Connect with timeout
-            sock.settimeout(30)  # 30 second connection timeout
-            sock.connect((server, port))
-            sock.settimeout(None)  # Reset timeout for normal operation
+            sock.connect((server, int(port)))
             
             # Store connection info
             self.connections[server] = {
                 'socket': sock,
                 'nickname': nickname,
-                'channels': {},
-                'buffer': ""
+                'channels': set(),
+                'users': {}  # Track users per server
             }
             
-            # Add server to tree if not already there
-            if server not in self.server_nodes:
-                self.add_server_node(server)
+            # Set as current server
             self.current_server = server
             
-            # Send initial commands
-            self.send_command(f"NICK {nickname}", server)
-            self.send_command(f"USER {nickname} 0 * :{nickname}", server)
+            # Add server node to tree if it doesn't exist
+            if server not in self.server_nodes:
+                # Create server node in tree
+                server_node = self.network_tree.insert("", "end", text=server, tags=("server",))
+                self.server_nodes[server] = {
+                    'node': server_node,
+                    'channels': {},
+                    'private_msgs': {}
+                }
+            
+            # Send registration commands
+            sock.send(f"NICK {nickname}\r\n".encode())
+            sock.send(f"USER {nickname} 0 * :{nickname}\r\n".encode())
             
             # Start receive thread
-            receive_thread = threading.Thread(target=self.receive_messages, args=(server,))
-            receive_thread.daemon = True
-            receive_thread.start()
+            receive_thread = threading.Thread(
+                target=self.receive_data,
+                args=(server,),
+                daemon=True
+            )
             self.receive_threads[server] = receive_thread
+            receive_thread.start()
             
-            self.add_status_message(f"Connected to {server}")
-            return True
+            # Update status
+            self.add_status_message(f"Connected to {server}:{port} as {nickname}")
             
         except Exception as e:
-            self.add_status_message(f"Failed to connect to {server}: {e}")
+            self.add_status_message(f"Error connecting to {server}: {e}")
+            # Clean up failed connection
             if server in self.connections:
                 del self.connections[server]
-            if server in self.server_nodes and not self.disconnecting:
-                # Only remove server node if we're not in the middle of reconnecting
-                self.remove_server_node(server)
-            return False
                 
+            # Try to clean up socket
+            try:
+                sock.close()
+            except:
+                pass
+
     def run(self):
         """Start the IRC client"""
         try:
@@ -2613,15 +2304,253 @@ class IRCClient:
                 for server, thread in list(self.receive_threads.items()):
                     thread.join(0.5)  # Short timeout 
                     
+    def receive_data(self, server):
+        """Receive and process data from a specific server connection"""
+        try:
+            buffer = ""
+            sock = self.connections[server]['socket']
+            
+            while server in self.connections:
+                try:
+                    data = sock.recv(4096).decode('utf-8', errors='replace')
+                    if not data:  # Connection closed
+                        self.add_status_message(f"Connection to {server} closed")
+                        self.disconnect_from_server(server)
+                        break
+                        
+                    # Add data to buffer and process complete lines
+                    buffer += data
+                    lines = buffer.split('\r\n')
+                    buffer = lines.pop()  # Keep incomplete line in buffer
+                    
+                    for line in lines:
+                        print(f"RECV {server}: {line}")
+                        self.handle_server_message(line, server)
+                        
+                except socket.timeout:
+                    # Just continue on timeout
+                    continue
+                except socket.error as e:
+                    self.add_status_message(f"Socket error for {server}: {e}")
+                    self.disconnect_from_server(server)
+                    break
+                    
+        except Exception as e:
+            self.add_status_message(f"Error in receive thread for {server}: {e}")
+        finally:
+            # Clean up
+            if server in self.connections:
+                self.disconnect_from_server(server)
+
+    def on_tree_select(self, event):
+        """Handle when a node is selected in the network tree"""
+        selection = self.network_tree.selection()
+        if not selection:
+            return
+            
+        item = selection[0]
+        item_text = self.network_tree.item(item)['text']
+        item_tags = self.network_tree.item(item)['tags']
+        item_values = self.network_tree.item(item)['values']
+        
+        if 'server' in item_tags:
+            # Server node selected - set as current server
+            self.current_server = item_text
+            self.add_status_message(f"Selected server: {item_text}")
+            
+        elif 'channel' in item_tags:
+            # Channel node selected
+            # Get the server from the parent item
+            parent = self.network_tree.parent(item)
+            server = self.network_tree.item(parent)['text']
+            
+            # Create channel key and focus the window if it exists
+            channel_key = f"{server}:{item_text}"
+            if channel_key in self.channel_windows:
+                self.channel_windows[channel_key].window.deiconify()
+                self.channel_windows[channel_key].window.lift()
+                
+        elif 'private' in item_tags:
+            # Private message node selected
+            # Get the PM key from the item values
+            if item_values and len(item_values) > 0:
+                pm_key = item_values[0]
+                if pm_key in self.private_windows:
+                    self.private_windows[pm_key].window.deiconify()
+                    self.private_windows[pm_key].window.lift()
+            else:
+                # Backward compatibility - try to get the server from the parent's parent
+                username = item_text
+                parent = self.network_tree.parent(item)  # Get PM category
+                server_node = self.network_tree.parent(parent)  # Get server node
+                server = self.network_tree.item(server_node)['text']
+                
+                # Try both with the new format and old format
+                pm_key = f"{server}:{username}"
+                if pm_key in self.private_windows:
+                    self.private_windows[pm_key].window.deiconify()
+                    self.private_windows[pm_key].window.lift()
+
+    def show_tree_menu(self, event):
+        """Show context menu for tree items"""
+        # Get the item under cursor
+        item = self.network_tree.identify('item', event.x, event.y)
+        if not item:
+            return
+            
+        # Select the item
+        self.network_tree.selection_set(item)
+        
+        # Get item info
+        item_tags = self.network_tree.item(item)['tags']
+        
+        # Configure menu based on item type
+        if 'server' in item_tags:
+            # Server context menu
+            self.tree_menu.entryconfig("Connect", state="normal")
+            self.tree_menu.entryconfig("Disconnect", state="normal")
+            self.tree_menu.entryconfig("Join Channel", state="normal")
+            self.tree_menu.entryconfig("Close Window", state="disabled")
+        elif 'channel' in item_tags:
+            # Channel context menu
+            self.tree_menu.entryconfig("Connect", state="disabled")
+            self.tree_menu.entryconfig("Disconnect", state="disabled")
+            self.tree_menu.entryconfig("Join Channel", state="disabled")
+            self.tree_menu.entryconfig("Close Window", state="normal")
+        elif 'private' in item_tags:
+            # PM context menu
+            self.tree_menu.entryconfig("Connect", state="disabled")
+            self.tree_menu.entryconfig("Disconnect", state="disabled")
+            self.tree_menu.entryconfig("Join Channel", state="disabled")
+            self.tree_menu.entryconfig("Close Window", state="normal")
+        else:
+            # Other item or no item - disable all
+            self.tree_menu.entryconfig("Connect", state="disabled")
+            self.tree_menu.entryconfig("Disconnect", state="disabled")
+            self.tree_menu.entryconfig("Join Channel", state="disabled")
+            self.tree_menu.entryconfig("Close Window", state="disabled")
+            
+        # Display the menu
+        self.tree_menu.tk_popup(event.x_root, event.y_root)
+        
+    def connect_selected(self):
+        """Connect to the selected server"""
+        selection = self.network_tree.selection()
+        if not selection:
+            return
+            
+        item = selection[0]
+        item_tags = self.network_tree.item(item)['tags']
+        
+        if 'server' in item_tags:
+            server = self.network_tree.item(item)['text']
+            if server not in self.connections:
+                # Show connect dialog for this server
+                self.add_status_message(f"Use /server {server} port nickname to connect")
+            else:
+                self.add_status_message(f"Already connected to {server}")
+                
+    def disconnect_selected(self):
+        """Disconnect from the selected server"""
+        selection = self.network_tree.selection()
+        if not selection:
+            return
+            
+        item = selection[0]
+        item_tags = self.network_tree.item(item)['tags']
+        
+        if 'server' in item_tags:
+            server = self.network_tree.item(item)['text']
+            if server in self.connections:
+                self.quit_server(server, "Disconnecting")
+            else:
+                self.add_status_message(f"Not connected to {server}")
+                
+    def close_selected(self):
+        """Close the selected window"""
+        selection = self.network_tree.selection()
+        if not selection:
+            return
+            
+        item = selection[0]
+        item_tags = self.network_tree.item(item)['tags']
+        item_text = self.network_tree.item(item)['text']
+        
+        if 'channel' in item_tags:
+            # Get the server from the parent
+            parent = self.network_tree.parent(item)
+            server = self.network_tree.item(parent)['text']
+            
+            # Create channel key
+            channel_key = f"{server}:{item_text}"
+            if channel_key in self.channel_windows:
+                # Part the channel
+                self.send_command(f"PART {item_text}", server)
+                # Close the window
+                self.channel_windows[channel_key].on_closing()
+                
+        elif 'private' in item_tags:
+            # Get values which should contain the PM key
+            item_values = self.network_tree.item(item)['values']
+            if item_values and len(item_values) > 0:
+                pm_key = item_values[0]
+                if pm_key in self.private_windows:
+                    self.private_windows[pm_key].on_closing()
+            else:
+                # Backward compatibility
+                username = item_text
+                # Try to get server from parent's parent
+                parent = self.network_tree.parent(item)
+                server_node = self.network_tree.parent(parent)
+                server = self.network_tree.item(server_node)['text']
+                
+                # Try with both formats
+                pm_key = f"{server}:{username}"
+                if pm_key in self.private_windows:
+                    self.private_windows[pm_key].on_closing()
+
+    def on_exit(self):
+        """Handle application exit"""
+        # Disconnect from all servers
+        for server in list(self.connections.keys()):
+            try:
+                self.quit_server(server, "Client closing")
+            except:
+                pass
+            
+        # Destroy the main window
+        self.window.destroy()
+
 def main():
-    server = "irc.libera.chat"
-    port = 6667
-    nickname = "c0d3Ninja"
+    # Configuration info - but don't connect automatically
+    server = "irc.libera.chat"  # Default server
+    port = 6667  # Default port
+    nickname = "PythonUser"  # Default nickname
     
-    client = IRCClient(server, port, nickname)
-    # Connect to default server after initialization
-    client.connect_to_server(server, port, nickname)
-    client.run()
+    # Import required modules
+    import tkinter as tk
+    from tkinter import ttk
+    import tkinter.scrolledtext as scrolledtext
+    import threading
+    import socket
+    import time
+    from datetime import datetime
+    import os
+    
+    # Create Tkinter root window
+    root = tk.Tk()
+    root.title("RootX IRC Client")
+    root.geometry("1000x700")
+    
+    # Initialize the client with the root window but don't connect yet
+    irc_client = IRCClient(root, None, port, nickname)
+    
+    # Display connection instructions
+    irc_client.add_status_message("Welcome to rootX IRC Client!")
+    irc_client.add_status_message(f"To connect, use: /server {server} {port} {nickname}")
+    
+    # Run the Tkinter main loop
+    root.mainloop()
 
 
 if __name__ == "__main__":
