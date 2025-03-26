@@ -4,7 +4,6 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 from datetime import datetime
 from colorama import Fore, Style
-import time
 
 class ChannelWindow:
     def __init__(self, irc_client, channel_name, server):
@@ -82,7 +81,6 @@ class ChannelWindow:
         
         # Handle window closing
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
-      
         
         # Configure text tags for different message types
         self.chat_display.tag_configure('timestamp', foreground='gray')
@@ -115,6 +113,28 @@ class ChannelWindow:
         
         # Bind double-click instead of right-click
         self.users_listbox.bind("<Double-Button-1>", self.show_user_menu)
+
+        # Create server menu
+        self.server_menu = tk.Menu(self.window, tearoff=0)
+        self.server_menu.add_command(label="NickServ...", command=self.show_nickserv_dialog)
+        self.server_menu.add_command(label="ChanServ...", command=self.show_chanserv_dialog)
+        
+        # Add server menu to the menu bar
+        self.menu_bar = tk.Menu(self.window)
+        self.menu_bar.add_cascade(label="Server", menu=self.server_menu)
+        self.window.config(menu=self.menu_bar)
+
+
+        self.minimized = False
+        self.window.withdraw()  # Start minimized
+
+        # Add batch update variables
+        self.batch_updating = False
+        self.names_buffer = set()
+        self.is_closing = False
+
+        # Add action color
+        self.chat_display.tag_configure('action', foreground='yellow')
 
         # Add theme settings
         self.current_theme = "default"
@@ -176,54 +196,44 @@ class ChannelWindow:
                 'action': '#00aa00'
             }
         }
-
-        # Create menu bar
-        self.menu_bar = tk.Menu(self.window)
-        self.window.config(menu=self.menu_bar)
         
-        # Create server menu
-        self.server_menu = tk.Menu(self.menu_bar, tearoff=0)
-        self.server_menu.add_command(label="NickServ...", command=self.show_nickserv_dialog)
-        self.server_menu.add_command(label="ChanServ...", command=self.show_chanserv_dialog)
-        self.menu_bar.add_cascade(label="Server", menu=self.server_menu)
-
         # Create theme menu
-        self.theme_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.theme_menu = tk.Menu(self.window, tearoff=0)
         for theme_name in self.themes.keys():
             self.theme_menu.add_command(
                 label=theme_name.capitalize(),
                 command=lambda t=theme_name: self.apply_theme(t)
             )
+            
+        # Add theme menu to window menu bar
+        self.menu_bar = tk.Menu(self.window)
+        self.window.config(menu=self.menu_bar)
         self.menu_bar.add_cascade(label="Theme", menu=self.theme_menu)
-        
-        # Create Settings menu
-        self.settings_menu = tk.Menu(self.menu_bar, tearoff=0)
-        self.menu_bar.add_cascade(label="Settings", menu=self.settings_menu)
-        self.settings_menu.add_command(label="Theme Settings", command=self.show_theme_settings)
-
-        self.minimized = False
-        self.window.withdraw()  # Start minimized
-
-        # Add batch update variables
-        self.batch_updating = False
-        self.names_buffer = set()
-        self.is_closing = False
-
-        # Add action color
-        self.chat_display.tag_configure('action', foreground='yellow')
         
         # Apply default theme
         self.apply_theme("default")
 
-        # Handle window closing
-        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+        # Create menu bar (add this after window creation)
+        self.menu_bar = tk.Menu(self.window)
+        self.window.config(menu=self.menu_bar)
+        
+        # Create Settings menu
+        self.settings_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.menu_bar.add_cascade(label="Settings", menu=self.settings_menu)
+        
+        # Add Theme Settings option
+        self.settings_menu.add_command(label="Theme Settings", command=self.show_theme_settings)
 
-    def update_topic(self, topic):
-        """Update the channel topic"""
-        if topic:
-            self.topic_label.config(text=topic)
-        else:
-            self.topic_label.config(text="No topic set")
+
+        # Create server menu
+        self.server_menu = tk.Menu(self.window, tearoff=0)
+        self.server_menu.add_command(label="NickServ...", command=self.show_nickserv_dialog)
+        self.server_menu.add_command(label="ChanServ...", command=self.show_chanserv_dialog)
+        
+        # Add server menu to the menu bar
+        self.menu_bar = tk.Menu(self.window)
+        self.menu_bar.add_cascade(label="Server", menu=self.server_menu)
+        self.window.config(menu=self.menu_bar)
 
     def show_theme_settings(self):
         """Show theme settings window"""
@@ -350,31 +360,19 @@ class ChannelWindow:
                     fg=theme['fg']
                 )
                 
-                # Configure text tags with theme colors more efficiently
-                tag_colors = {
-                    'timestamp': 'timestamp',
-                    'join': 'join',
-                    'part': 'part',
-                    'quit': 'quit',
-                    'nick': 'nick',
-                    'username': 'username',
-                    'my_username': 'my_username',
-                    'message': 'message',
-                    'kick': 'kick',
-                    'action': 'action',
-                    'ban': 'ban',
-                    'op': 'op',
-                    'deop': 'deop',
-                    'voice': 'voice',
-                    'devoice': 'devoice'
-                }
+                # Configure text tags with theme colors
+                self.chat_display.tag_configure('timestamp', foreground=theme['timestamp'])
+                self.chat_display.tag_configure('join', foreground=theme['join'])
+                self.chat_display.tag_configure('part', foreground=theme['part'])
+                self.chat_display.tag_configure('quit', foreground=theme['quit'])
+                self.chat_display.tag_configure('nick', foreground=theme['nick'])
+                self.chat_display.tag_configure('username', foreground=theme['username'])
+                self.chat_display.tag_configure('my_username', foreground=theme['my_username'])
+                self.chat_display.tag_configure('message', foreground=theme['message'])
+                self.chat_display.tag_configure('kick', foreground=theme['kick'])
+                self.chat_display.tag_configure('action', foreground=theme['action'])
                 
-                # Apply all tag configurations in a single loop
-                for tag, color_key in tag_colors.items():
-                    if color_key in theme:
-                        self.chat_display.tag_configure(tag, foreground=theme[color_key])
-                
-                # Save theme preference
+                # Save theme preference (optional)
                 self.irc_client.save_theme_preference(theme_name)
                 
                 print(f"DEBUG - Applied theme: {theme_name}")
@@ -411,13 +409,8 @@ class ChannelWindow:
             selected = self.users_listbox.curselection()
             if selected:
                 user = self.users_listbox.get(selected[0])
-                # Check if it's the current user
-                current_nick = self.irc_client.connections[self.server]['nickname']
-                if user == current_nick or (user.startswith(('@', '+')) and user[1:] == current_nick):
-                    self.chat_display.insert(tk.END, f"You cannot kick yourself from {self.channel_name}\n", 'error')
-                    return
-                # Remove any prefix character
-                if not user[0].isalnum():
+                # Remove @ or + if present
+                if user.startswith(('@', '+')):
                     user = user[1:]
                     
                 # Create dialog for kick reason
@@ -465,15 +458,14 @@ class ChannelWindow:
             selected = self.users_listbox.curselection()
             if selected:
                 user = self.users_listbox.get(selected[0])
-                # Check if it's the current user
-                current_nick = self.irc_client.connections[self.server]['nickname']
-                if user == current_nick or (user.startswith(('@', '+')) and user[1:] == current_nick):
-                    self.chat_display.insert(tk.END, f"You cannot ban yourself from {self.channel_name}\n", 'error')
-                    return
-                # Remove any prefix character
-                if not user[0].isalnum():
+                # Store the pending ban
+                self.irc_client.pending_bans[user] = self.channel_name
+                # Request WHOIS to get user's host
+                self.irc_client.send_command(f'WHOIS {user}', self.server)
+                # Remove @ or + if present
+                if user.startswith(('@', '+')):
                     user = user[1:]
-                
+                    
                 # Create dialog for ban options
                 ban_dialog = tk.Toplevel(self.window)
                 ban_dialog.title("Ban Options")
@@ -482,8 +474,8 @@ class ChannelWindow:
                 # Add ban type selection
                 ttk.Label(ban_dialog, text="Ban Type:").pack(pady=5)
                 ban_type = tk.StringVar(value="nick")
-                ttk.Radiobutton(ban_dialog, text="Nick Ban", variable=ban_type, value="nick").pack(anchor=tk.W)
-                ttk.Radiobutton(ban_dialog, text="Host Ban", variable=ban_type, value="host").pack(anchor=tk.W)
+                ttk.Radiobutton(ban_dialog, text="Nick Ban", variable=ban_type, value="nick").pack()
+                ttk.Radiobutton(ban_dialog, text="Host Ban", variable=ban_type, value="host").pack()
                 
                 # Add reason entry
                 ttk.Label(ban_dialog, text="Reason:").pack(pady=5)
@@ -499,38 +491,24 @@ class ChannelWindow:
                     
                     # Request whois to get host info if needed
                     if ban_type.get() == "host":
-                        # Store the pending ban details
+                        self.irc_client.send_command(f"WHOIS {user}", self.server)
+                        # Note: The actual ban will be handled in the WHOIS response
                         self.irc_client.pending_bans[user] = {
                             'channel': self.channel_name,
                             'reason': reason,
                             'kick': kick_after.get()
                         }
-                        # Request WHOIS to get user's host
-                        self.irc_client.send_command(f"WHOIS {user}", self.server)
-                        self.chat_display.insert(tk.END, f"Requesting host information for {user}...\n", 'message')
                     else:
                         # Simple nick ban
                         self.irc_client.send_command(
                             f"MODE {self.channel_name} +b {user}!*@*",
                             self.server
                         )
-                        # Add ban message
-                        timestamp = datetime.now().strftime("[%H:%M:%S]")
-                        self.chat_display.insert(tk.END,
-                            f"{timestamp} * Set ban on {user}!*@*\n",
-                            'ban')
-                            
                         if kick_after.get():
                             self.irc_client.send_command(
                                 f"KICK {self.channel_name} {user} :{reason}",
                                 self.server
                             )
-                            # Add kick message
-                            self.chat_display.insert(tk.END,
-                                f"{timestamp} * Attempting to kick {user} ({reason})\n",
-                                'kick')
-                        
-                        self.chat_display.see(tk.END)
                     
                     print(f"DEBUG - Banning {user} from {self.channel_name}: {reason}")
                     ban_dialog.destroy()
@@ -548,12 +526,8 @@ class ChannelWindow:
             selected = self.users_listbox.curselection()
             if selected:
                 user = self.users_listbox.get(selected[0])
-                # Check if user is not an op
-                if not user.startswith('@'):
-                    self.chat_display.insert(tk.END, f"{user} is not an operator in {self.channel_name}\n", 'error')
-                    return
-                # Remove any prefix character
-                if not user[0].isalnum():
+                # Remove @ or + if present
+                if user.startswith(('@', '+')):
                     user = user[1:]
                     
                 # Send mode command to remove operator status
@@ -573,12 +547,8 @@ class ChannelWindow:
             selected = self.users_listbox.curselection()
             if selected:
                 user = self.users_listbox.get(selected[0])
-                # Check if user doesn't have voice
-                if not user.startswith('+'):
-                    self.chat_display.insert(tk.END, f"{user} does not have voice in {self.channel_name}\n", 'error')
-                    return
-                # Remove any prefix character
-                if not user[0].isalnum():
+                # Remove @ or + if present
+                if user.startswith(('@', '+')):
                     user = user[1:]
                     
                 # Send mode command to remove voice status
@@ -598,12 +568,8 @@ class ChannelWindow:
             selected = self.users_listbox.curselection()
             if selected:
                 user = self.users_listbox.get(selected[0])
-                # Check if user is already an op
-                if user.startswith('@'):
-                    self.chat_display.insert(tk.END, f"{user} is already an operator in {self.channel_name}\n", 'error')
-                    return
-                # Remove any prefix character (not just @ or +)
-                if not user[0].isalnum():
+                # Remove @ or + if present
+                if user.startswith(('@', '+')):
                     user = user[1:]
                     
                 # Send mode command to give operator status
@@ -623,19 +589,8 @@ class ChannelWindow:
             selected = self.users_listbox.curselection()
             if selected:
                 user = self.users_listbox.get(selected[0])
-                # Check if user already has voice or is an op
-                if user.startswith('+'):
-                    self.chat_display.insert(tk.END, f"{user} already has voice in {self.channel_name}\n", 'error')
-                    return
-                if user.startswith('@'):
-                    self.chat_display.insert(tk.END, f"{user} is an operator and already has voice privileges in {self.channel_name}\n", 'error')
-                    return
-                # Check if it's the current user
-                if user == self.irc_client.connections[self.server]['nickname']:
-                    self.chat_display.insert(tk.END, f"You cannot give yourself voice in {self.channel_name}\n", 'error')
-                    return
-                # Remove any prefix character
-                if not user[0].isalnum():
+                # Remove @ or + if present
+                if user.startswith(('@', '+')):
                     user = user[1:]
                     
                 # Send mode command to give voice status
@@ -714,29 +669,61 @@ class ChannelWindow:
                 self.add_message(f"{current_nick}: {message}")  # No tag needed, will use default
             self.message_input.delete(0, tk.END)
 
-    def update_users_list(self):
-        """Update the users listbox safely"""
-        if self.is_closing:
-            return
-            
+    def _update_users_list_safe(self):
+        """Internal method to safely update users list in the GUI thread"""
         try:
-            # Schedule update in the GUI thread
-            self.window.after(0, self._do_update_users_list)
+            self.users_listbox.delete(0, tk.END)
+            for user in sorted(self.users):
+                self.users_listbox.insert(tk.END, user)
         except Exception as e:
-            print(f"Error scheduling users list update: {e}")
+            print(f"Error in _update_users_list_safe: {e}")
+            
+    def update_users_list(self):
+
+        """Update the users listbox safely"""
+        if not self.is_closing:
+            try:
+                self.window.after(0, self._update_users_list_safe)
+            except Exception as e:
+                print(f"Error updating users list: {e}")
+
+        """Update the users listbox with current users"""
+        try:
+            if not self.window.winfo_exists():
+                return
+                
+            print(f"DEBUG - Updating users list for {self.channel_name}")  # Debug print
+            print(f"DEBUG - Current users: {self.users}")  # Debug print
+            
+            self.users_listbox.delete(0, tk.END)
+            
+            # Sort users with ops (@) first, then voice (+), then regular users
+            sorted_users = sorted(self.users, key=lambda x: (
+                (0 if x.startswith('@') else 1 if x.startswith('+') else 2),
+                x.lstrip('@+').lower()
+            ))
+            
+            for user in sorted_users:
+                self.users_listbox.insert(tk.END, user)
+                
+            # Update users count
+            self.users_label.config(text=f"Users ({len(self.users)})")
+            print(f"DEBUG - Updated users list with {len(self.users)} users")  # Debug print
+            
+        except Exception as e:
+            print(f"Error updating users list: {e}")
             
     def end_batch_update(self):
         """End a batch update and process pending updates"""
         if self.batch_updating:
             self.batch_updating = False
             if self.names_buffer:
-                print(f"DEBUG - Processing batch update for {self.channel_name}")
-                print(f"DEBUG - Names buffer: {self.names_buffer}")
+                print(f"DEBUG - Processing batch update for {self.channel_name}")  # Debug print
+                print(f"DEBUG - Names buffer: {self.names_buffer}")  # Debug print
                 self.users = self.names_buffer.copy()
                 self.update_users_list()
-            
+    
     def _do_update_users_list(self):
-        """Performs the actual update of the users list in the GUI thread"""
         try:
             self.users_listbox.delete(0, tk.END)
             
@@ -768,22 +755,19 @@ class ChannelWindow:
         try:
             timestamp = datetime.now().strftime("[%H:%M:%S]")
             
-            # Prepare the message parts before inserting to minimize GUI operations
-            parts = []
-            parts.append(('timestamp', timestamp + " "))
+            # Insert timestamp with gray color
+            self.chat_display.insert(tk.END, timestamp + " ", 'timestamp')
             
             # Handle different types of messages
             if message.startswith('* '):  # System messages
                 if 'has joined' in message:
-                    parts.append(('join', message + '\n'))
+                    self.chat_display.insert(tk.END, message + '\n', 'join')
                 elif 'has left' in message:
-                    parts.append(('part', message + '\n'))
+                    self.chat_display.insert(tk.END, message + '\n', 'part')
                 elif 'has quit' in message:
-                    parts.append(('quit', message + '\n'))
+                    self.chat_display.insert(tk.END, message + '\n', 'quit')
                 elif 'is now known as' in message:
-                    parts.append(('nick', message + '\n'))
-                else:
-                    parts.append((tag or 'message', message + '\n'))
+                    self.chat_display.insert(tk.END, message + '\n', 'nick')
             else:
                 # Regular chat messages
                 if ': ' in message:
@@ -791,21 +775,14 @@ class ChannelWindow:
                     # Check if the message is from the current user
                     current_nick = self.irc_client.connections[self.server]['nickname']
                     if username == current_nick:
-                        parts.append(('my_username', username + ': '))
+                        self.chat_display.insert(tk.END, username + ': ', 'my_username')
                     else:
-                        parts.append(('username', username + ': '))
-                    parts.append((tag or 'message', text + '\n'))
+                        self.chat_display.insert(tk.END, username + ': ', 'username')
+                    self.chat_display.insert(tk.END, text + '\n', tag or 'message')
                 else:
-                    parts.append((tag or 'message', message + '\n'))
+                    self.chat_display.insert(tk.END, message + '\n', tag or 'message')
             
-            # Insert all parts in a single operation
-            for tag_name, text in parts:
-                self.chat_display.insert(tk.END, text, tag_name)
-            
-            # Keep the display scrolled to the bottom and update
             self.chat_display.see(tk.END)
-            
-            # Only update the display after all text is inserted
             self.chat_display.update()
         except Exception as e:
             print(f"Error in _add_message_safe: {e}")
@@ -941,29 +918,23 @@ class PrivateWindow:
 
 class IRCClient:
     def __init__(self, default_server, default_port, default_nickname):
-        """Initialize the IRC client"""
-        self.version = "rootX IRC Client v1.0"
-        self.default_server = default_server
-        self.default_port = default_port
+        self.connections = {}  # Dictionary to store server connections
         self.default_nickname = default_nickname
-        self.connections = {}
-        self.server_nodes = {}
         self.channel_windows = {}
         self.private_windows = {}
-        self.status_window = None
-        self.current_server = None
-        self.running = True
+        self.server_nodes = {}
         self.lock = threading.Lock()
+        self.running = True
+        self.current_server = None
         self.disconnecting = False
-        self.receive_threads = {}  # Track receive threads by server
-        
-        # Initialize preferences
-        self.preferences = {
-            'theme': 'default'
-        }
         
         # Create GUI
         self.create_status_window()
+        
+        self.preferences = {
+            'theme': 'default'
+        }
+        #self.connect_to_server(default_server, default_port, default_nickname)
         
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
@@ -978,9 +949,6 @@ class IRCClient:
         """Quit from a server and clean up"""
         if server in self.connections:
             try:
-                # Set disconnecting flag to signal thread to exit
-                self.disconnecting = True
-                
                 # Send QUIT command to server
                 self.send_command(f"QUIT :{quit_message}", server)
                 
@@ -990,77 +958,47 @@ class IRCClient:
                     self.connections[server]['socket'].close()
                 except:
                     pass
-                
-                # Clean up connections dictionary
                 del self.connections[server]
                 
                 # Remove server node and cleanup windows
                 self.remove_server_node(server)
                 
-                # Wait for receive thread to exit (with timeout)
-                if server in self.receive_threads:
-                    self.receive_threads[server].join(1.0)  # Wait up to 1 second
-                    del self.receive_threads[server]
-                
                 self.add_status_message(f"Disconnected from {server}")
                 
             except Exception as e:
                 self.add_status_message(f"Error quitting {server}: {e}")
-            finally:
-                self.disconnecting = False
 
     def remove_server_node(self, server):
         """Remove a server node and all its children from the tree"""
-        try:
-            if server in self.server_nodes:
-                # Delete all channel windows for this server first
-                channels_to_remove = []
-                for channel_key in list(self.channel_windows.keys()):  # Create a list copy
-                    if channel_key.startswith(f"{server}:"):
-                        channels_to_remove.append(channel_key)
-                
-                # Safely destroy channel windows
-                for channel_key in channels_to_remove:
-                    try:
-                        if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
-                            if window and window.window:
-                                window.window.destroy()
-                            del self.channel_windows[channel_key]
-                    except Exception as e:
-                        print(f"Error removing channel window {channel_key}: {e}")
+        if server in self.server_nodes:
+            # Delete all channel windows for this server
+            channels_to_remove = []
+            for channel_key in self.channel_windows.keys():
+                if channel_key.startswith(f"{server}:"):
+                    channels_to_remove.append(channel_key)
+            
+            for channel_key in channels_to_remove:
+                self.channel_windows[channel_key].window.destroy()
+                del self.channel_windows[channel_key]
 
-                # Delete all PM windows for this server
-                pms_to_remove = []
-                for username, window in list(self.private_windows.items()):  # Create a list copy
-                    if window.server == server:
-                        pms_to_remove.append(username)
-                
-                # Safely destroy PM windows
-                for username in pms_to_remove:
-                    try:
-                        if username in self.private_windows:
-                            window = self.private_windows[username]
-                            if window and window.window:
-                                window.window.destroy()
-                            del self.private_windows[username]
-                    except Exception as e:
-                        print(f"Error removing PM window for {username}: {e}")
+            # Delete all PM windows for this server
+            pms_to_remove = []
+            for username, window in self.private_windows.items():
+                if window.server == server:
+                    pms_to_remove.append(username)
+            
+            for username in pms_to_remove:
+                self.private_windows[username].window.destroy()
+                del self.private_windows[username]
 
-                # Remove from tree and clean up server_nodes
-                if server in self.server_nodes:
-                    try:
-                        self.network_tree.delete(self.server_nodes[server]['node'])
-                        del self.server_nodes[server]
-                    except Exception as e:
-                        print(f"Error removing server node from tree: {e}")
-                
-                if server == self.current_server:
-                    self.current_server = None
-                
-                print(f"Removed server node: {server}")  # Debug print
-        except Exception as e:
-            print(f"Error in remove_server_node: {e}")
+            # Remove from tree and clean up server_nodes
+            self.network_tree.delete(self.server_nodes[server]['node'])
+            del self.server_nodes[server]
+            
+            if server == self.current_server:
+                self.current_server = None
+            
+            print(f"Removed server node: {server}")  # Debug print
 
 
 
@@ -1799,19 +1737,15 @@ class IRCClient:
                     
                     # Close the socket
                     try:
-                        self.connections[server]['socket'].shutdown(socket.SHUT_RDWR)
                         self.connections[server]['socket'].close()
                     except:
                         pass
                     del self.connections[server]
                     
-                    # Wait for receive thread to terminate
-                    if server in self.receive_threads:
-                        self.receive_threads[server].join(1.0)  # Wait up to 1 second
-                        del self.receive_threads[server]
-                    
-                    # Use the dedicated method to remove server node and all its children
-                    self.remove_server_node(server)
+                    # Remove server node
+                    if server in self.server_nodes:
+                        self.network_tree.delete(self.server_nodes[server])
+                        del self.server_nodes[server]
         finally:
             self.disconnecting = False
 
@@ -1992,17 +1926,11 @@ class IRCClient:
                 error_msg = data.split(':', 1)[1].strip()
                 self.add_status_message(f"Server {server} disconnected: {error_msg}")
                 self.quit_server(server)
-                self.remove_server_node(server)  # Add this line
                 return
             # Print raw data to status window for debugging
             self.add_status_message(f"DEBUG: {data}")
             
-            if data.startswith('PING'):
-                ping_param = data.split(':', 1)[1] if ':' in data else data.split('PING', 1)[1]
-                self.send_command(f'PONG :{ping_param.strip()}', server)
-                self.add_status_message(f"PONG sent to {server}")
-                return
-            elif data.startswith('PONG'):
+            if data.startswith('PING') or data.startswith('PONG'):
                 return
             
 
@@ -2067,61 +1995,18 @@ class IRCClient:
                     if '311' in data:  # WHOIS user info
                         user_host = parts[4] + '@' + parts[5]
                         if target_nick in self.pending_bans:
-                            ban_data = self.pending_bans[target_nick]
-                            if isinstance(ban_data, dict):  # New format with channel and reason
-                                channel = ban_data['channel']
-                                reason = ban_data.get('reason', "Banned")
-                                kick = ban_data.get('kick', True)
-                                
-                                # Apply the ban
-                                ban_mask = f'*!{user_host}'
-                                self.send_command(f'MODE {channel} +b {ban_mask}', server)
-                                
-                                # Update channel display
-                                channel_key = f"{server}:{channel}"
-                                if channel_key in self.channel_windows:
-                                    window = self.channel_windows[channel_key]
-                                    timestamp = datetime.now().strftime("[%H:%M:%S]")
-                                    window.chat_display.insert(tk.END,
-                                        f"{timestamp} * Set ban on {ban_mask}\n",
-                                        'ban')
-                                    window.chat_display.see(tk.END)
-                                
-                                # Kick if requested
-                                if kick:
-                                    self.send_command(f'KICK {channel} {target_nick} :{reason}', server)
-                            else:  # Old format with just channel name
-                                channel = ban_data
-                                self.send_command(f'MODE {channel} +b *!{user_host}', server)
-                                self.send_command(f'KICK {channel} {target_nick} :Banned', server)
-                            
-                            # Clean up after applying ban
+                            channel = self.pending_bans[target_nick]
+                            ban_mask = f'*!{user_host}'
+                            self.send_command(f'MODE {channel} +b {ban_mask}', server)
+                            self.send_command(f'KICK {channel} {target_nick} Banned', server)
                             del self.pending_bans[target_nick]
                             
                     elif '318' in data:  # End of WHOIS
-                        # Clean up if we got end of WHOIS but no user info 
-                        # (e.g., if user doesn't exist)
                         if target_nick in self.pending_bans:
-                            ban_data = self.pending_bans[target_nick]
-                            # Log the failed ban attempt
-                            if isinstance(ban_data, dict):
-                                channel = ban_data['channel']
-                                channel_key = f"{server}:{channel}"
-                                if channel_key in self.channel_windows:
-                                    window = self.channel_windows[channel_key]
-                                    window.chat_display.insert(tk.END,
-                                        f"Could not ban {target_nick}: User info not available\n",
-                                        'error')
-                                    window.chat_display.see(tk.END)
-                            
-                            # Clean up
                             del self.pending_bans[target_nick]
                             
                 except Exception as e:
                     self.add_status_message(f"Error handling WHOIS for ban: {e}")
-                    # Clean up any pending bans to prevent memory leaks
-                    if target_nick in self.pending_bans:
-                        del self.pending_bans[target_nick]
 
             
             # Handle LIST response (322)
@@ -2140,34 +2025,7 @@ class IRCClient:
                 except Exception as e:
                     self.add_status_message(f"Error handling channel list: {e}")
                 return
-            
-            # Handle TOPIC messages
-            if 'TOPIC' in data:
-                try:
-                    parts = data.split()
-                    channel = parts[2]
-                    topic = data.split(':', 2)[-1].strip()
-                    channel_key = f"{server}:{channel}"
-                    
-                    if channel_key in self.channel_windows:
-                        self.channel_windows[channel_key].update_topic(topic)
-                        self.channel_windows[channel_key].add_message(f"* Topic changed to: {topic}")
-                except Exception as e:
-                    self.add_status_message(f"Error handling topic: {e}")
-                    
-            # Handle 332 (topic on join) messages
-            elif ' 332 ' in data:  # RPL_TOPIC
-                try:
-                    parts = data.split()
-                    channel = parts[3]
-                    topic = data.split(':', 2)[-1].strip()
-                    channel_key = f"{server}:{channel}"
-                    
-                    if channel_key in self.channel_windows:
-                        self.channel_windows[channel_key].update_topic(topic)
-                except Exception as e:
-                    self.add_status_message(f"Error handling topic on join: {e}")
-            
+                
             # Handle end of LIST (323)
             if ' 323 ' in data:  # End of channel list
                 self.add_status_message("End of channel list")
@@ -2404,49 +2262,29 @@ class IRCClient:
 
     def receive_messages(self, server):
         """Receive messages from a specific server"""
-        connection_errors = 0
-        max_connection_errors = 3
-        reconnect_delay = 5
-        
-        while self.running:
+        while self.running:  # Use running flag
             try:
-                with self.lock:
-                    if server not in self.connections or self.disconnecting:
+                with self.lock:  # Use lock for thread safety
+                    if server not in self.connections:
                         break
                     
                     conn = self.connections[server]
                     try:
-                        # Set a timeout on the socket
-                        conn['socket'].settimeout(180)  # 3 minutes timeout
                         data = conn['socket'].recv(4096).decode('utf-8')
                         if not data:
                             raise ConnectionError("Server closed connection")
-                    except (socket.timeout, TimeoutError):
-                        raise ConnectionError("Connection timed out")
-                    except (socket.error, OSError) as e:
-                        if e.errno == 9:  # Bad file descriptor
-                            self.add_status_message(f"Socket for {server} was closed")
-                            break
-                        elif e.errno == 54:  # Connection reset by peer
-                            self.add_status_message(f"Connection reset by {server}, attempting to reconnect...")
-                            raise ConnectionResetError(f"Connection reset: {e}")
-                        raise ConnectionError(f"Socket error: {e}")
                     except UnicodeDecodeError:
                         try:
                             data = conn['socket'].recv(4096).decode('latin-1')
-                        except (socket.error, OSError) as e:
-                            if e.errno == 9:  # Bad file descriptor
-                                break
-                            elif e.errno == 54:  # Connection reset by peer
-                                self.add_status_message(f"Connection reset by {server}, attempting to reconnect...")
-                                raise ConnectionResetError(f"Connection reset: {e}")
-                            raise
+                        except:
+                            data = conn['socket'].recv(4096).decode('iso-8859-1')
                     
                     if not data:
                         break
-                    
-                    # Reset connection error counter on successful data
-                    connection_errors = 0
+                        
+                    if data.startswith('PING'):
+                        self.send_command('PONG' + data.split('PING')[1], server)
+                        continue
                     
                     # Process received data
                     conn['buffer'] += data
@@ -2454,80 +2292,12 @@ class IRCClient:
                     conn['buffer'] = lines.pop()
                     
                     for line in lines:
-                        if line:  # Only process non-empty lines
-                            self.handle_server_message(line, server)
+                        self.handle_server_message(line, server)
                         
-            except ConnectionResetError as e:
-                self.add_status_message(f"Connection reset for {server}: {e}")
-                # Try to reconnect
-                connection_errors += 1
-                if connection_errors <= max_connection_errors:
-                    # Clean up the old connection
-                    with self.lock:
-                        if server in self.connections:
-                            try:
-                                self.connections[server]['socket'].close()
-                            except:
-                                pass
-                            
-                            # Save current state before reconnecting
-                            old_nickname = self.connections[server]['nickname']
-                            old_channels = list(self.connections[server]['channels'].keys())
-                            del self.connections[server]
-                            
-                            # Don't remove server node during reconnection attempts
-                            if server in self.receive_threads:
-                                del self.receive_threads[server]
-                    
-                    # Wait before reconnecting
-                    time.sleep(reconnect_delay)
-                    
-                    # Try to reconnect outside of the lock
-                    if self.running and not self.disconnecting:
-                        self.add_status_message(f"Attempting to reconnect to {server} (try {connection_errors}/{max_connection_errors})...")
-                        port = 6667  # Default port, could be stored in connection info
-                        success = self.connect_to_server(server, port, old_nickname)
-                        
-                        if success:
-                            # Rejoin channels
-                            for channel in old_channels:
-                                self.send_command(f"JOIN {channel}", server)
-                            continue
-                else:
-                    self.add_status_message(f"Failed to reconnect to {server} after {max_connection_errors} attempts")
-                    # Clean up as usual after max retries
-                    with self.lock:
-                        if server in self.connections:
-                            try:
-                                self.connections[server]['socket'].close()
-                            except:
-                                pass
-                            del self.connections[server]
-                            if server in self.receive_threads:
-                                del self.receive_threads[server]
-                            self.remove_server_node(server)
-                    break
-                
             except Exception as e:
                 self.add_status_message(f"Error receiving from {server}: {e}")
-                # Clean up the connection
-                with self.lock:
-                    if server in self.connections:
-                        try:
-                            self.connections[server]['socket'].close()
-                        except:
-                            pass
-                        del self.connections[server]
-                        if server in self.receive_threads:
-                            del self.receive_threads[server]
-                        self.remove_server_node(server)
                 break
-            
-        # Thread exit cleanup
-        with self.lock:
-            if server in self.receive_threads:
-                del self.receive_threads[server]
-
+                
     def connect_to_server(self, server, port, nickname):
         """Connect to a new server"""
         try:
@@ -2536,27 +2306,9 @@ class IRCClient:
                 self.add_status_message(f"Already connected to {server}")
                 return False
 
-            # Create new socket connection
+            # Create new socket connection (simplified)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)  # Enable TCP keepalive
-            
-            # Configure TCP keepalive parameters if available
-            # These help detect dead connections faster
-            if hasattr(socket, 'TCP_KEEPIDLE'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)  # Start sending after 60 seconds
-            if hasattr(socket, 'TCP_KEEPINTVL'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)  # Send every 30 seconds
-            if hasattr(socket, 'TCP_KEEPCNT'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)  # 3 failed probes = dead
-                
-            # For macOS (Darwin)
-            if hasattr(socket, 'TCP_KEEPALIVE'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPALIVE, 60)
-                
-            # Connect with timeout
-            sock.settimeout(30)  # 30 second connection timeout
             sock.connect((server, port))
-            sock.settimeout(None)  # Reset timeout for normal operation
             
             # Store connection info
             self.connections[server] = {
@@ -2566,9 +2318,8 @@ class IRCClient:
                 'buffer': ""
             }
             
-            # Add server to tree if not already there
-            if server not in self.server_nodes:
-                self.add_server_node(server)
+            # Add server to tree
+            self.add_server_node(server)
             self.current_server = server
             
             # Send initial commands
@@ -2579,7 +2330,6 @@ class IRCClient:
             receive_thread = threading.Thread(target=self.receive_messages, args=(server,))
             receive_thread.daemon = True
             receive_thread.start()
-            self.receive_threads[server] = receive_thread
             
             self.add_status_message(f"Connected to {server}")
             return True
@@ -2588,8 +2338,7 @@ class IRCClient:
             self.add_status_message(f"Failed to connect to {server}: {e}")
             if server in self.connections:
                 del self.connections[server]
-            if server in self.server_nodes and not self.disconnecting:
-                # Only remove server node if we're not in the middle of reconnecting
+            if server in self.server_nodes:
                 self.remove_server_node(server)
             return False
                 
@@ -2601,18 +2350,13 @@ class IRCClient:
         finally:
             # Cleanup when the program exits
             self.running = False
-            self.disconnecting = True
             with self.lock:
                 for server, conn in self.connections.items():
                     try:
                         conn['socket'].close()
                     except:
                         pass
-                
-                # Wait for all receive threads to terminate
-                for server, thread in list(self.receive_threads.items()):
-                    thread.join(0.5)  # Short timeout 
-                    
+
 def main():
     server = "irc.libera.chat"
     port = 6667
