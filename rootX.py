@@ -12,6 +12,7 @@ class ChannelWindow:
         self.channel_name = channel_name
         self.server = server
         self.users = set()
+        self.is_closing = False
         
         # Create window
         self.window = tk.Toplevel()
@@ -207,7 +208,6 @@ class ChannelWindow:
         # Add batch update variables
         self.batch_updating = False
         self.names_buffer = set()
-        self.is_closing = False
 
         # Add action color
         self.chat_display.tag_configure('action', foreground='yellow')
@@ -802,46 +802,83 @@ class ChannelWindow:
             for tag_name, text in parts:
                 self.chat_display.insert(tk.END, text, tag_name)
             
-            # Keep the display scrolled to the bottom and update
+            # Keep the display scrolled to the bottom
             self.chat_display.see(tk.END)
             
             # Only update the display after all text is inserted
-            self.chat_display.update()
+            # No need to call update() every time - let Tkinter handle it naturally
+            # This reduces redundant GUI updates that could cause display issues
         except Exception as e:
             print(f"Error in _add_message_safe: {e}")
-
-
         
     def add_message(self, message, tag=None):
-
-        """Add a message to the chat display safely"""
         """Add a message to the chat display safely"""
         if not self.is_closing:
             try:
                 self.window.after(0, self._add_message_safe, message, tag)
             except Exception as e:
                 print(f"Error adding message: {e}")
-            
+
     def on_closing(self):
         """Handle window closing properly"""
         try:
+            if self.is_closing:
+                return  # Prevent multiple closing attempts
+                
             self.is_closing = True
+            
+            # Safely destroy widgets that might cause errors
+            try:
+                if hasattr(self, 'users_scrollbar'):
+                    self.users_scrollbar.destroy()
+            except tk.TclError:
+                pass
+                
+            try:
+                if hasattr(self, 'users_horizontal_scrollbar'):
+                    self.users_horizontal_scrollbar.destroy()
+            except tk.TclError:
+                pass
+                
+            try:
+                if hasattr(self, 'users_listbox'):
+                    self.users_listbox.destroy()
+            except tk.TclError:
+                pass
+            
             # Remove channel from network tree
             server_data = self.irc_client.server_nodes.get(self.server)  # Use self.server instead of current_server
             if server_data and self.channel_name in server_data['channels']:
-                self.irc_client.network_tree.delete(server_data['channels'][self.channel_name])
+                try:
+                    self.irc_client.network_tree.delete(server_data['channels'][self.channel_name])
+                except tk.TclError:
+                    pass
                 del server_data['channels'][self.channel_name]
 
             # Clean up channel windows dict
             channel_key = f"{self.server}:{self.channel_name}"
             if channel_key in self.irc_client.channel_windows:
                 del self.irc_client.channel_windows[channel_key]
-            self.irc_client.send_command(f"PART {self.channel_name}", self.server)
-            self.window.destroy()
+                
+            # Send PART command if we're connected
+            if self.server in self.irc_client.connections:
+                try:
+                    self.irc_client.send_command(f"PART {self.channel_name}", self.server)
+                except:
+                    pass
+                
+            # Finally destroy the window
+            try:
+                self.window.destroy()
+            except tk.TclError:
+                pass
         except Exception as e:
             print(f"Error in on_closing: {e}")
-
+            
     def toggle_visibility(self):
+        if self.is_closing:
+            return
+            
         if self.minimized:
             self.window.deiconify()
             self.minimized = False
@@ -855,6 +892,7 @@ class PrivateWindow:
         self.username = username
         self.server = server  # Store server information
         self.pm_key = f"{server}:{username}"  # Create a unique key for this PM window
+        self.is_closing = False
         
         # Create window
         self.window = tk.Toplevel()
@@ -902,20 +940,57 @@ class PrivateWindow:
             self.chat_display.see(tk.END)
 
     def on_closing(self):
-        # Remove PM node from correct server's tree section
-        server_data = self.irc_client.server_nodes.get(self.server)
-        if server_data and self.username in server_data['private_msgs']:
-            self.irc_client.network_tree.delete(server_data['private_msgs'][self.username])
-            del server_data['private_msgs'][self.username]
+        """Handle private window closing properly"""
+        try:
+            if self.is_closing:
+                return  # Prevent multiple closing attempts
                 
-        # Clean up private windows dict using the PM key
-        if self.pm_key in self.irc_client.private_windows:
-            del self.irc_client.private_windows[self.pm_key]
+            self.is_closing = True
             
-        # Destroy window
-        self.window.destroy()
+            # Remove PM node from correct server's tree section
+            server_data = self.irc_client.server_nodes.get(self.server)
+            if server_data and self.username in server_data['private_msgs']:
+                try:
+                    self.irc_client.network_tree.delete(server_data['private_msgs'][self.username])
+                except tk.TclError:
+                    pass
+                del server_data['private_msgs'][self.username]
+                    
+            # Clean up private windows dict using the PM key
+            if self.pm_key in self.irc_client.private_windows:
+                del self.irc_client.private_windows[self.pm_key]
+                
+            # Safely destroy widgets
+            try:
+                if hasattr(self, 'chat_display'):
+                    self.chat_display.destroy()
+            except tk.TclError:
+                pass
+                
+            try:
+                if hasattr(self, 'message_input'):
+                    self.message_input.destroy()
+            except tk.TclError:
+                pass
+                
+            try:
+                if hasattr(self, 'send_button'):
+                    self.send_button.destroy()
+            except tk.TclError:
+                pass
+                
+            # Finally destroy window
+            try:
+                self.window.destroy()
+            except tk.TclError:
+                pass
+        except Exception as e:
+            print(f"Error in PM window on_closing: {e}")
         
     def send_message(self, event=None):
+        if self.is_closing:
+            return
+            
         message = self.message_input.get()
         if message:
             # Pass the server along with the message
@@ -952,6 +1027,9 @@ class IRCClient:
         self.current_server = None  # Track which server is currently active
         self.servers = []  # List of servers to connect to
         
+        # Store default settings
+        self.default_nickname = nickname
+        
         # Initialize status_display to None to prevent exceptions
         self.status_display = None
         
@@ -980,7 +1058,7 @@ class IRCClient:
         
         # Create main window
         self.window = master
-        self.window.title("Multi-Server IRC Client")
+        self.window.title("RootX IRC Client")
         
         # Create paned window
         self.paned_window = ttk.PanedWindow(self.window, orient=tk.HORIZONTAL)
@@ -1093,36 +1171,22 @@ class IRCClient:
         """Quit from a server and clean up"""
         if server in self.connections:
             try:
-                # Set disconnecting flag to signal thread to exit
-                self.disconnecting = True
-                
-                # Send QUIT command to server
-                self.send_command(f"QUIT :{quit_message}", server)
-                
-                # Close socket
+                # Try to send a QUIT message before disconnecting
                 try:
-                    self.connections[server]['socket'].shutdown(socket.SHUT_RDWR)
-                    self.connections[server]['socket'].close()
+                    self.send_command(f"QUIT :{quit_message}", server)
                 except:
                     pass
-                
-                # Clean up connections dictionary
-                del self.connections[server]
-                
-                # Remove server node and cleanup windows
-                self.remove_server_node(server)
-                
-                # Wait for receive thread to exit (with timeout)
-                if server in self.receive_threads:
-                    self.receive_threads[server].join(1.0)  # Wait up to 1 second
-                    del self.receive_threads[server]
-                
-                self.add_status_message(f"Disconnected from {server}")
+                    
+                # Use the improved disconnect method to handle the rest
+                self.disconnect_from_server(server)
                 
             except Exception as e:
                 self.add_status_message(f"Error quitting {server}: {e}")
-            finally:
-                self.disconnecting = False
+                # Try to disconnect anyway even if there was an error
+                try:
+                    self.disconnect_from_server(server)
+                except:
+                    pass
 
     def remove_server_node(self, server):
         """Remove a server node and all its child nodes from the tree"""
@@ -1273,9 +1337,9 @@ class IRCClient:
             if username in self.private_windows:
                 self.private_windows[username].toggle_visibility()
 
-    def send_ctcp_request(self, target, request):
+    def send_ctcp_request(self, target, request, server=None):
         """Send a CTCP request"""
-        self.send_command(f"PRIVMSG {target} :\x01{request}\x01")
+        self.send_command(f"PRIVMSG {target} :\x01{request}\x01", server)
 
     def send_ctcp_reply(self, target, reply):
         """Send a CTCP reply"""
@@ -1546,34 +1610,79 @@ class IRCClient:
     def disconnect_from_server(self, server):
         """Safely disconnect from a server"""
         try:
+            # Set disconnecting flag to signal threads to exit
             self.disconnecting = True
+            
             with self.lock:
                 if server in self.connections:
+                    self.add_status_message(f"Disconnecting from {server}...")
+                    
                     # Close all channel windows for this server
                     channels_to_close = [
-                        key for key in self.channel_windows.keys()
+                        key for key in list(self.channel_windows.keys())
                         if key.startswith(f"{server}:")
                     ]
                     for channel_key in channels_to_close:
                         if channel_key in self.channel_windows:
-                            self.channel_windows[channel_key].on_closing()
+                            try:
+                                self.channel_windows[channel_key].on_closing()
+                            except Exception as e:
+                                print(f"Error closing channel window {channel_key}: {e}")
+                    
+                    # Close all PM windows for this server
+                    pms_to_close = [
+                        key for key in list(self.private_windows.keys())
+                        if key.startswith(f"{server}:")
+                    ]
+                    for pm_key in pms_to_close:
+                        if pm_key in self.private_windows:
+                            try:
+                                self.private_windows[pm_key].on_closing()
+                            except Exception as e:
+                                print(f"Error closing PM window {pm_key}: {e}")
+                    
+                    # Try to send a QUIT message before disconnecting
+                    try:
+                        self.send_command(f"QUIT :Disconnecting", server)
+                    except:
+                        pass
+                        
+                    # Wait a moment for the QUIT message to be sent
+                    time.sleep(0.5)
                     
                     # Close the socket
                     try:
-                        self.connections[server]['socket'].shutdown(socket.SHUT_RDWR)
-                        self.connections[server]['socket'].close()
+                        sock = self.connections[server]['socket']
+                        sock.shutdown(socket.SHUT_RDWR)
+                        sock.close()
                     except:
                         pass
+                        
+                    # Remove from connections dictionary
                     del self.connections[server]
                     
-                    # Wait for receive thread to terminate
+                    # Wait for receive thread to terminate - only if called from a different thread
                     if server in self.receive_threads:
-                        self.receive_threads[server].join(1.0)  # Wait up to 1 second
+                        current_thread = threading.current_thread()
+                        if current_thread != self.receive_threads[server]:
+                            try:
+                                self.receive_threads[server].join(2.0)  # Increased timeout to 2 seconds
+                            except RuntimeError:
+                                pass  # Ignore "cannot join current thread" error
+                            
+                        # Always remove the thread reference whether we waited or not
                         del self.receive_threads[server]
                     
-                    # Use the dedicated method to remove server node and all its children
+                    # Remove server node and all its children from the tree view
                     self.remove_server_node(server)
+                    
+                    # Update status
+                    self.add_status_message(f"Disconnected from {server}")
+                    
+        except Exception as e:
+            self.add_status_message(f"Error during disconnect from {server}: {e}", 'error')
         finally:
+            # Reset disconnecting flag
             self.disconnecting = False
 
     def toggle_window(self, event):
@@ -1637,7 +1746,6 @@ class IRCClient:
                 
             if server:
                 self.quit_server(server, quit_message)
-                self.add_status_message(f"Usage: /quit [server] [message] - Current servers: {', '.join(self.connections.keys())}")
             else:
                 self.add_status_message("Not connected to any server")
             return
@@ -1663,17 +1771,27 @@ class IRCClient:
                     self.channel_windows[channel_key].window.destroy()
                     del self.channel_windows[channel_key]
 
-        if cmd == '/server':
-            if len(parts) >= 2:
-                server = parts[1]
-                port = int(parts[2]) if len(parts) > 2 else 6667
-                nickname = parts[3] if len(parts) > 3 else self.default_nickname
-                self.connect_to_server(server, port, nickname)
-            else:
-                self.add_status_message("Usage: /server <server> [port] [nickname]")
+        elif cmd == '/server':
+            try:
+                if len(parts) >= 2:
+                    server = parts[1]
+                    # Use defaults if not provided
+                    try:
+                        port = int(parts[2]) if len(parts) > 2 else 6667
+                    except ValueError:
+                        self.add_status_message("Port must be a number, using default 6667", 'error')
+                        port = 6667
+                        
+                    nickname = parts[3] if len(parts) > 3 else self.default_nickname
+                    self.add_status_message(f"Connecting to {server}:{port} as {nickname}...")
+                    self.connect_to_server(server, port, nickname)
+                else:
+                    self.add_status_message("Usage: /server <server> [port] [nickname]")
+            except Exception as e:
+                self.add_status_message(f"Error executing /server command: {e}", 'error')
 
 
-            # Fix /me command handling
+        # Fix /me command handling
         elif cmd == '/me':
                 if len(parts) > 1 and current_channel:
                     action_text = ' '.join(parts[1:])
@@ -1748,6 +1866,39 @@ class IRCClient:
             elif data.startswith('PONG'):
                 return
             
+            # Handle PRIVMSG (including channel messages and private messages)
+            elif 'PRIVMSG' in data:
+                try:
+                    parts = data.split('!')
+                    if len(parts) > 1:
+                        sender = parts[0].lstrip(':')
+                        target = data.split('PRIVMSG')[1].split(':', 1)[0].strip()
+                        message = data.split('PRIVMSG')[1].split(':', 1)[1].strip()
+                        
+                        # Handle ACTION messages
+                        if message.startswith('\x01ACTION') and message.endswith('\x01'):
+                            action_text = message[8:-1]
+                            channel_key = f"{server}:{target}"
+                            if channel_key in self.channel_windows:
+                                self.channel_windows[channel_key].add_action(sender, action_text)
+                            elif sender in self.private_windows:
+                                self.private_windows[sender].add_action(sender, action_text)
+                        else:
+                            # Handle regular messages
+                            if target.startswith('#'):  # Channel message
+                                channel_key = f"{server}:{target}"
+                                if channel_key in self.channel_windows:
+                                    self.channel_windows[channel_key].add_message(f"{sender}: {message}")
+                            else:  # Private message
+                                if sender not in self.private_windows:
+                                    self.create_private_window(sender, server)
+                                self.private_windows[sender].add_message(f"{sender}: {message}")
+                                
+                    # Important: Return after processing PRIVMSG to prevent duplicate processing
+                    return
+                except Exception as e:
+                    self.add_status_message(f"Error handling message: {e}")
+                    return
 
             elif 'MODE' in data:
                 try:
@@ -1797,126 +1948,9 @@ class IRCClient:
                 except Exception as e:
                     print(f"Error handling mode: {e}")
                     self.add_status_message(f"Error handling mode: {e}")
-                            
-                except Exception as e:
-                    print(f"Error handling mode: {e}")
-                    self.add_status_message(f"Error handling mode: {e}")
 
-            elif data.startswith(':') and ('311' in data or '318' in data):  # WHOIS response
-                try:
-                    parts = data.split()
-                    target_nick = parts[3]
-                    
-                    if '311' in data:  # WHOIS user info
-                        user_host = parts[4] + '@' + parts[5]
-                        if target_nick in self.pending_bans:
-                            ban_data = self.pending_bans[target_nick]
-                            if isinstance(ban_data, dict):  # New format with channel and reason
-                                channel = ban_data['channel']
-                                reason = ban_data.get('reason', "Banned")
-                                kick = ban_data.get('kick', True)
-                                
-                                # Apply the ban
-                                ban_mask = f'*!{user_host}'
-                                self.send_command(f'MODE {channel} +b {ban_mask}', server)
-                                
-                                # Update channel display
-                                channel_key = f"{server}:{channel}"
-                                if channel_key in self.channel_windows:
-                                    window = self.channel_windows[channel_key]
-                                    timestamp = datetime.now().strftime("[%H:%M:%S]")
-                                    window.chat_display.insert(tk.END,
-                                        f"{timestamp} * Set ban on {ban_mask}\n",
-                                        'ban')
-                                    window.chat_display.see(tk.END)
-                                
-                                # Kick if requested
-                                if kick:
-                                    self.send_command(f'KICK {channel} {target_nick} :{reason}', server)
-                            else:  # Old format with just channel name
-                                channel = ban_data
-                                self.send_command(f'MODE {channel} +b *!{user_host}', server)
-                                self.send_command(f'KICK {channel} {target_nick} :Banned', server)
-                            
-                            # Clean up after applying ban
-                            del self.pending_bans[target_nick]
-                            
-                    elif '318' in data:  # End of WHOIS
-                        # Clean up if we got end of WHOIS but no user info 
-                        # (e.g., if user doesn't exist)
-                        if target_nick in self.pending_bans:
-                            ban_data = self.pending_bans[target_nick]
-                            # Log the failed ban attempt
-                            if isinstance(ban_data, dict):
-                                channel = ban_data['channel']
-                                channel_key = f"{server}:{channel}"
-                                if channel_key in self.channel_windows:
-                                    window = self.channel_windows[channel_key]
-                                    window.chat_display.insert(tk.END,
-                                        f"Could not ban {target_nick}: User info not available\n",
-                                        'error')
-                                    window.chat_display.see(tk.END)
-                            
-                            # Clean up
-                            del self.pending_bans[target_nick]
-                            
-                except Exception as e:
-                    self.add_status_message(f"Error handling WHOIS for ban: {e}")
-                    # Clean up any pending bans to prevent memory leaks
-                    if target_nick in self.pending_bans:
-                        del self.pending_bans[target_nick]
-
-            
-            # Handle LIST response (322)
-            elif '322' in data:  # RPL_LIST
-                try:
-                    parts = data.split()
-                    channel = parts[3]
-                    users = parts[4]
-                    topic = ' '.join(parts[5:]).lstrip(':')
-                    if hasattr(self, 'channel_list_callback'):
-                        self.channel_list_callback({
-                            'channel': channel,
-                            'users': users,
-                            'topic': topic
-                        })
-                except Exception as e:
-                    self.add_status_message(f"Error handling channel list: {e}")
-                return
-            
-            # Handle TOPIC messages
-            if 'TOPIC' in data:
-                try:
-                    parts = data.split()
-                    channel = parts[2]
-                    topic = data.split(':', 2)[-1].strip()
-                    channel_key = f"{server}:{channel}"
-                    
-                    if channel_key in self.channel_windows:
-                        self.channel_windows[channel_key].update_topic(topic)
-                        self.channel_windows[channel_key].add_message(f"* Topic changed to: {topic}")
-                except Exception as e:
-                    self.add_status_message(f"Error handling topic: {e}")
-                    
-            # Handle 332 (topic on join) messages
-            elif ' 332 ' in data:  # RPL_TOPIC
-                try:
-                    parts = data.split()
-                    channel = parts[3]
-                    topic = data.split(':', 2)[-1].strip()
-                    channel_key = f"{server}:{channel}"
-                    
-                    if channel_key in self.channel_windows:
-                        self.channel_windows[channel_key].update_topic(topic)
-                except Exception as e:
-                    self.add_status_message(f"Error handling topic on join: {e}")
-            
-            # Handle end of LIST (323)
-            if ' 323 ' in data:  # End of channel list
-                self.add_status_message("End of channel list")
-                return
-
-            if 'JOIN' in data:
+            # Handle JOIN messages
+            elif 'JOIN' in data:
                 try:
                     parts = data.split('!')
                     if len(parts) > 1:
@@ -1929,9 +1963,7 @@ class IRCClient:
                             window = self.channel_windows[channel_key]
                             window.users.add(user)
                             window.update_users_list()
-                            timestamp = datetime.now().strftime("[%H:%M:%S]")
-                            window.chat_display.insert(tk.END, f"{timestamp} * {user} has joined {channel}\n", 'join')
-                            window.chat_display.see(tk.END)
+                            window.add_message(f"* {user} has joined {channel}")
                             
                             # Request NAMES list if we joined
                             if user == self.connections[server]['nickname']:
@@ -1940,18 +1972,17 @@ class IRCClient:
                 except Exception as e:
                     print(f"Error handling JOIN: {e}")  # Debug print
                     self.add_status_message(f"Error handling join: {e}")
-                    
-            if '353' in data:  # NAMES reply
+
+            # Handle NAMES reply (numeric 353)
+            elif ' 353 ' in data:  # NAMES reply
                 try:
                     # Parse channel name
                     channel = None
-                    channel_type = None
                     
                     # Split the message parts
                     parts = data.split()
                     for i, part in enumerate(parts):
                         if part in ['=', '*', '@']:  # Channel type indicators
-                            channel_type = part
                             if i + 1 < len(parts):
                                 channel = parts[i + 1]
                                 break
@@ -1983,8 +2014,8 @@ class IRCClient:
                     print(f"Error processing NAMES: {e}")  # Debug print
                     self.add_status_message(f"Error processing NAMES: {e}")
                     
-            # Handle end of NAMES list (366)
-            elif '366' in data:  # End of NAMES
+            # Handle end of NAMES list (numeric 366)
+            elif ' 366 ' in data:  # End of NAMES
                 try:
                     # Find channel name
                     channel = None
@@ -2008,37 +2039,6 @@ class IRCClient:
                     print(f"Error handling end of NAMES: {e}")  # Debug print
                     self.add_status_message(f"Error handling end of NAMES: {e}")
 
-            elif 'PRIVMSG' in data:
-                try:
-                    parts = data.split('!')
-                    if len(parts) > 1:
-                        sender = parts[0].lstrip(':')
-                        target = data.split('PRIVMSG')[1].split(':', 1)[0].strip()
-                        message = data.split('PRIVMSG')[1].split(':', 1)[1].strip()
-                        
-                        # Handle ACTION messages
-                        if message.startswith('\x01ACTION') and message.endswith('\x01'):
-                            action_text = message[8:-1]
-                            channel_key = f"{server}:{target}"
-                            if channel_key in self.channel_windows:
-                                self.channel_windows[channel_key].add_action(sender, action_text)
-                            elif sender in self.private_windows:
-                                self.private_windows[sender].add_action(sender, action_text)
-                        else:
-                            # Handle regular messages
-                            if target.startswith('#'):  # Channel message
-                                channel_key = f"{server}:{target}"
-                                if channel_key in self.channel_windows:
-                                    self.channel_windows[channel_key].add_message(f"{sender}: {message}")
-                            else:  # Private message
-                                if sender not in self.private_windows:
-                                    self.create_private_window(sender, server)
-                                self.private_windows[sender].add_message(f"{sender}: {message}")
-                                
-                except Exception as e:
-                    self.add_status_message(f"Error handling message: {e}")
-
-
             elif 'PART' in data:
                 try:
                     parts = data.split('!')
@@ -2052,8 +2052,6 @@ class IRCClient:
                             self.channel_windows[channel_key].add_message(f"* {user} has left {channel}")
                 except Exception as e:
                     self.add_status_message(f"Error handling part: {e}")
-
-
 
             if 'KICK' in data:
                 try:
@@ -2131,82 +2129,6 @@ class IRCClient:
                 except Exception as e:
                     self.add_status_message(f"Error handling nick: {e}")
 
-            # Handle PRIVMSG (including channel messages and private messages)
-            elif ' PRIVMSG ' in data:
-                try:
-                    # Parse sender and target
-                    parts = data.split(' PRIVMSG ', 1)
-                    sender_part = parts[0].lstrip(':')
-                    sender_nick = sender_part.split('!', 1)[0]
-                    
-                    # Get target and message
-                    target_msg = parts[1].split(' :', 1)
-                    target = target_msg[0]
-                    message = target_msg[1] if len(target_msg) > 1 else ""
-                    
-                    # Check if it's a CTCP message
-                    if message.startswith('\x01') and message.endswith('\x01'):
-                        # Handle CTCP
-                        ctcp_content = message.strip('\x01')
-                        ctcp_parts = ctcp_content.split(' ', 1)
-                        ctcp_cmd = ctcp_parts[0].upper()
-                        ctcp_args = ctcp_parts[1] if len(ctcp_parts) > 1 else ""
-                        
-                        if ctcp_cmd == 'ACTION':
-                            # Handle actions (/me commands)
-                            if target.startswith('#'):
-                                # Channel action
-                                channel_key = f"{server}:{target}"
-                                if channel_key in self.channel_windows:
-                                    self.channel_windows[channel_key].add_action(sender_nick, ctcp_args)
-                            else:
-                                # Private message action
-                                pm_key = f"{server}:{sender_nick}"
-                                if pm_key in self.private_windows:
-                                    self.private_windows[pm_key].add_action(sender_nick, ctcp_args)
-                                else:
-                                    # Create PM window
-                                    pm_window = self.create_private_window(sender_nick, server)
-                                    if pm_window:
-                                        pm_window.add_action(sender_nick, ctcp_args)
-                            return
-                        elif ctcp_cmd == 'VERSION':
-                            # Reply with client version
-                            self.send_command(f"NOTICE {sender_nick} :\x01VERSION Python IRC Client 1.0\x01", server)
-                            return
-                        elif ctcp_cmd == 'PING':
-                            # Reply with ping response
-                            self.send_command(f"NOTICE {sender_nick} :\x01PING {ctcp_args}\x01", server)
-                            return
-                        elif ctcp_cmd == 'TIME':
-                            # Reply with local time
-                            local_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            self.send_command(f"NOTICE {sender_nick} :\x01TIME {local_time}\x01", server)
-                            return
-                        else:
-                            # Other CTCP commands - ignore for now
-                            print(f"Unhandled CTCP: {ctcp_cmd} from {sender_nick}")
-                            return
-                    
-                    # Handle regular messages
-                    if target.startswith('#'):
-                        # Channel message
-                        channel_key = f"{server}:{target}"
-                        if channel_key in self.channel_windows:
-                            self.channel_windows[channel_key].add_message(f"{sender_nick}: {message}")
-                    else:
-                        # Private message
-                        pm_key = f"{server}:{sender_nick}"
-                        if pm_key in self.private_windows:
-                            self.private_windows[pm_key].add_message(f"{sender_nick}: {message}")
-                        else:
-                            # Create new PM window for this message
-                            pm_window = self.create_private_window(sender_nick, server)
-                            if pm_window:
-                                pm_window.add_message(f"{sender_nick}: {message}")
-                except Exception as e:
-                    self.add_status_message(f"Error handling PRIVMSG: {e}")
-
         except Exception as e:
             self.add_status_message(f"Error parsing server message: {e}")
             
@@ -2230,17 +2152,39 @@ class IRCClient:
                 # Set as current server
                 self.current_server = server
                 return
+            
+            # Add debug message
+            self.add_status_message(f"Attempting to connect to {server}:{port} as {nickname}", 'notice')
                 
             # Create socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            
+            # Make the socket keep-alive
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            
+            # Set a timeout for the connection attempt only
+            sock.settimeout(15)
+            
+            # Log connection attempt
+            self.add_status_message(f"Connecting to {server}:{port}...")
+            
+            # Connect to server
             sock.connect((server, int(port)))
+            
+            # After successful connection, set to blocking mode with a small timeout
+            # to allow for periodic checks of disconnecting flag
+            sock.settimeout(0.5)
+            
+            # Log successful connection
+            self.add_status_message(f"Socket connected to {server}:{port}")
             
             # Store connection info
             self.connections[server] = {
                 'socket': sock,
                 'nickname': nickname,
                 'channels': set(),
-                'users': {}  # Track users per server
+                'users': {},  # Track users per server
+                'last_ping': time.time()  # Track time of last ping
             }
             
             # Set as current server
@@ -2257,8 +2201,9 @@ class IRCClient:
                 }
             
             # Send registration commands
-            sock.send(f"NICK {nickname}\r\n".encode())
-            sock.send(f"USER {nickname} 0 * :{nickname}\r\n".encode())
+            self.add_status_message(f"Sending registration commands...")
+            sock.send(f"NICK {nickname}\r\n".encode('utf-8'))
+            sock.send(f"USER {nickname} 0 * :{nickname}\r\n".encode('utf-8'))
             
             # Start receive thread
             receive_thread = threading.Thread(
@@ -2269,11 +2214,34 @@ class IRCClient:
             self.receive_threads[server] = receive_thread
             receive_thread.start()
             
+            # Start a ping thread to keep the connection alive
+            ping_thread = threading.Thread(
+                target=self.ping_server_periodically,
+                args=(server,),
+                daemon=True
+            )
+            ping_thread.start()
+            
             # Update status
             self.add_status_message(f"Connected to {server}:{port} as {nickname}")
             
+        except ConnectionRefusedError:
+            self.add_status_message(f"Error: Connection to {server}:{port} refused", 'error')
+            # Clean up failed connection
+            if server in self.connections:
+                del self.connections[server]
+        except socket.gaierror:
+            self.add_status_message(f"Error: Could not resolve hostname {server}", 'error')
+            # Clean up failed connection
+            if server in self.connections:
+                del self.connections[server]
+        except socket.timeout:
+            self.add_status_message(f"Error: Connection to {server}:{port} timed out", 'error')
+            # Clean up failed connection
+            if server in self.connections:
+                del self.connections[server]
         except Exception as e:
-            self.add_status_message(f"Error connecting to {server}: {e}")
+            self.add_status_message(f"Error connecting to {server}: {e}", 'error')
             # Clean up failed connection
             if server in self.connections:
                 del self.connections[server]
@@ -2283,6 +2251,34 @@ class IRCClient:
                 sock.close()
             except:
                 pass
+                
+    def ping_server_periodically(self, server):
+        """Send periodic pings to keep the connection alive"""
+        try:
+            ping_interval = 30  # Ping every 30 seconds
+            while server in self.connections and not self.disconnecting:
+                # Wait for the interval
+                time.sleep(ping_interval)
+                
+                # Check if we're still connected
+                if server not in self.connections or self.disconnecting:
+                    break
+                    
+                # Send a ping
+                try:
+                    current_time = int(time.time())
+                    self.send_command(f"PING :{current_time}", server)
+                    self.connections[server]['last_ping'] = time.time()
+                except Exception as e:
+                    self.add_status_message(f"Error sending ping to {server}: {e}", 'error')
+                    break
+                    
+        except Exception as e:
+            self.add_status_message(f"Error in ping thread for {server}: {e}", 'error')
+        finally:
+            # Thread is exiting - if we're still connected, something went wrong
+            if server in self.connections and not self.disconnecting:
+                self.add_status_message(f"Ping thread for {server} exited unexpectedly", 'error')
 
     def run(self):
         """Start the IRC client"""
@@ -2310,14 +2306,30 @@ class IRCClient:
             buffer = ""
             sock = self.connections[server]['socket']
             
-            while server in self.connections:
+            # Set a small timeout for quicker response to disconnect
+            # This is already set in connect_to_server
+            
+            # Track consecutive timeouts
+            consecutive_timeouts = 0
+            max_consecutive_timeouts = 20  # About 10 seconds with 0.5s timeout
+            
+            self.add_status_message(f"Started receive thread for {server}")
+            
+            while server in self.connections and not self.disconnecting:
                 try:
                     data = sock.recv(4096).decode('utf-8', errors='replace')
-                    if not data:  # Connection closed
-                        self.add_status_message(f"Connection to {server} closed")
-                        self.disconnect_from_server(server)
-                        break
-                        
+                    if not data:  # Connection closed by server
+                        # Only consider it closed if we've received nothing multiple times
+                        consecutive_timeouts += 1
+                        if consecutive_timeouts >= 3:  # Three consecutive empty reads
+                            self.add_status_message(f"Connection to {server} closed by remote host", 'error')
+                            break
+                        # Otherwise, try again
+                        continue
+                    
+                    # Reset timeout counter on successful data
+                    consecutive_timeouts = 0
+                    
                     # Add data to buffer and process complete lines
                     buffer += data
                     lines = buffer.split('\r\n')
@@ -2328,19 +2340,41 @@ class IRCClient:
                         self.handle_server_message(line, server)
                         
                 except socket.timeout:
-                    # Just continue on timeout
+                    # Count consecutive timeouts
+                    consecutive_timeouts += 1
+                    
+                    # If too many consecutive timeouts, check connection with a PING
+                    if consecutive_timeouts >= max_consecutive_timeouts:
+                        # Send a ping to check if connection is still alive
+                        try:
+                            current_time = int(time.time())
+                            self.send_command(f"PING :{current_time}", server)
+                            consecutive_timeouts = 0  # Reset counter on successful send
+                        except socket.error:
+                            self.add_status_message(f"Connection to {server} appears to be lost", 'error')
+                            break
                     continue
+                    
+                except UnicodeDecodeError as e:
+                    self.add_status_message(f"Unicode decode error for {server}: {e}", 'error')
+                    consecutive_timeouts = 0  # Reset counter on any activity
+                    continue
+                    
                 except socket.error as e:
-                    self.add_status_message(f"Socket error for {server}: {e}")
-                    self.disconnect_from_server(server)
+                    self.add_status_message(f"Socket error for {server}: {e}", 'error')
                     break
                     
         except Exception as e:
-            self.add_status_message(f"Error in receive thread for {server}: {e}")
+            self.add_status_message(f"Error in receive thread for {server}: {e}", 'error')
         finally:
-            # Clean up
-            if server in self.connections:
-                self.disconnect_from_server(server)
+            # Clean up but only if not already being cleaned up elsewhere
+            if server in self.connections and not self.disconnecting:
+                try:
+                    self.disconnect_from_server(server)
+                except Exception as e:
+                    self.add_status_message(f"Error disconnecting from {server}: {e}", 'error')
+                    
+            self.add_status_message(f"Receive thread for {server} terminated")
 
     def on_tree_select(self, event):
         """Handle when a node is selected in the network tree"""
@@ -2523,9 +2557,9 @@ class IRCClient:
 
 def main():
     # Configuration info - but don't connect automatically
-    server = "irc.libera.chat"  # Default server
-    port = 6667  # Default port
-    nickname = "PythonUser"  # Default nickname
+    default_server = "irc.libera.chat"  # Default server
+    default_port = 6667  # Default port
+    default_nickname = "PythonUser"  # Default nickname
     
     # Import required modules
     import tkinter as tk
@@ -2543,11 +2577,11 @@ def main():
     root.geometry("1000x700")
     
     # Initialize the client with the root window but don't connect yet
-    irc_client = IRCClient(root, None, port, nickname)
+    irc_client = IRCClient(root, None, default_port, default_nickname)
     
     # Display connection instructions
     irc_client.add_status_message("Welcome to rootX IRC Client!")
-    irc_client.add_status_message(f"To connect, use: /server {server} {port} {nickname}")
+    irc_client.add_status_message(f"To connect, use: /server {default_server} {default_port} {default_nickname}")
     
     # Run the Tkinter main loop
     root.mainloop()
