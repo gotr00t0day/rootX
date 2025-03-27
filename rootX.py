@@ -1632,13 +1632,54 @@ class IRCClient:
             return pm_node
         return server_data['private_msgs'][username]
 
-    def remove_channel_node(self, channel):
-        """Remove a channel node"""
-        if self.current_server and self.current_server in self.server_nodes:
-            server_data = self.server_nodes[self.current_server]
-            if channel in server_data['channels']:
-                self.network_tree.delete(server_data['channels'][channel])
-                del server_data['channels'][channel]
+    def remove_channel_node(self, channel, server):
+        """Remove a channel node from the treeview."""
+        try:
+            if server in self.server_nodes:
+                server_data = self.server_nodes[server]
+                if channel in server_data['channels']:
+                    # Get the channel node ID and delete it
+                    channel_node = server_data['channels'][channel]
+                    self.network_tree.delete(channel_node)
+                    # Remove from the channels dictionary
+                    del server_data['channels'][channel]
+        except Exception as e:
+            self.add_status_message(f"Error removing channel node: {e}", "error")
+            traceback.print_exc()
+
+    def close_channel_tab(self, channel, server):
+        """Close a channel tab and remove it from the tree view."""
+        try:
+            # Remove from channel_windows
+            channel_key = f"{server}:{channel}"
+            if channel_key in self.channel_windows:
+                # Get the tab and tab_id
+                channel_tab = self.channel_windows[channel_key]['tab']
+                
+                # Remove from notebook by finding the tab's index
+                tab_index = self.notebook.index(channel_tab)
+                if tab_index is not None:
+                    self.notebook.forget(tab_index)
+                
+                # Clean up channel_windows entry
+                del self.channel_windows[channel_key]
+                
+                # Remove from tabs dictionary
+                if channel_key in self.tabs:
+                    del self.tabs[channel_key]
+                
+                # Remove from treeview
+                self.remove_channel_node(channel, server)
+                
+                # Switch to status tab if this was the active tab
+                current_tab = self.notebook.select()
+                if not current_tab or current_tab == str(channel_tab):
+                    self.select_tab("status")
+                    
+                self.add_status_message(f"Closed channel {channel} on {server}", "info")
+        except Exception as e:
+            self.add_status_message(f"Error closing channel tab: {e}", "error")
+            traceback.print_exc()
 
     def remove_pm_node(self, username):
         """Remove a private message node"""
@@ -2631,7 +2672,13 @@ class IRCClient:
                         user = parts[0].lstrip(':')
                         channel = data.split('PART')[1].split()[0].strip()
                         channel_key = f"{server}:{channel}"
-                        if channel_key in self.channel_windows:
+                        
+                        # If we left the channel, close the tab
+                        if user == self.connections[server]['nickname']:
+                            self.add_status_message(f"You left {channel} on {server}", 'part')
+                            self.close_channel_tab(channel, server)
+                        # If someone else left
+                        elif channel_key in self.channel_windows:
                             channel_info = self.channel_windows[channel_key]
                             # Remove user with any prefix
                             for u in list(channel_info['users']):
@@ -2667,8 +2714,8 @@ class IRCClient:
                             if kicked_user == self.connections[server]['nickname']:
                                 # We were kicked
                                 self.add_channel_message(channel_key, f"* You were kicked from {channel} by {kicker} ({reason})", 'part')
-                                # Close the tab after a delay
-                                self.master.after(5000, lambda: self.close_channel_tab(channel_key))
+                                # Close the tab immediately, not after a delay
+                                self.close_channel_tab(channel, server)
                             else:
                                 self.add_channel_message(channel_key, f"* {kicked_user} was kicked from {channel} by {kicker} ({reason})", 'part')
                 except Exception as e:
