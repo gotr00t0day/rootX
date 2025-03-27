@@ -3933,12 +3933,60 @@ def main():
     root.title("RootX IRC Client")
     root.geometry("1000x700")
     
+    # Set up dark theme for the entire application
+    style = ttk.Style()
+    style.theme_use('default')
+    
+    # Configure dark theme colors
+    style.configure('TFrame', background='black')
+    style.configure('TLabel', background='black', foreground='white')
+    style.configure('TButton', background='#333333', foreground='white')
+    style.configure('TEntry', fieldbackground='black', foreground='white')
+    style.configure('TNotebook', background='black')
+    style.configure('TNotebook.Tab', background='black', foreground='white')
+    style.configure('TPanedwindow', background='black')
+    style.configure('Treeview', background='black', foreground='white', fieldbackground='black')
+    style.map('Treeview', background=[('selected', '#333333')], foreground=[('selected', 'white')])
+    style.configure('TSeparator', background='#333333')
+    style.configure('TMenubutton', background='black', foreground='white')
+    style.configure('TCheckbutton', background='black', foreground='white')
+    style.configure('Vertical.TScrollbar', background='#333333', troughcolor='black')
+    style.configure('Horizontal.TScrollbar', background='#333333', troughcolor='black')
+    
+    # Set root window background
+    root.configure(background='black')
+    
+    # Override default text widget configuration
+    root.option_add('*Text.Background', 'black')
+    root.option_add('*Text.Foreground', 'white')
+    root.option_add('*Text.selectBackground', '#333333')
+    root.option_add('*Text.selectForeground', 'white')
+    
+    # Override scrolledtext defaults
+    root.option_add('*ScrolledText.Background', 'black')
+    root.option_add('*ScrolledText.Foreground', 'white')
+    
+    # Override listbox defaults
+    root.option_add('*Listbox.Background', 'black')
+    root.option_add('*Listbox.Foreground', 'white')
+    root.option_add('*Listbox.selectBackground', '#333333')
+    root.option_add('*Listbox.selectForeground', 'white')
+    
+    # Override menu defaults
+    root.option_add('*Menu.Background', 'black')
+    root.option_add('*Menu.Foreground', 'white')
+    root.option_add('*Menu.activeBackground', '#333333')
+    root.option_add('*Menu.activeForeground', 'white')
+    
     # Initialize the client with the root window but don't connect yet
     irc_client = IRCClient(root, None, default_port, default_nickname)
     
     # Display connection instructions
     irc_client.add_status_message("Welcome to rootX IRC Client!")
     irc_client.add_status_message(f"To connect, use: /server {default_server} {default_port} {default_nickname}")
+    
+    # Apply dark theme to all windows
+    irc_client.save_theme_preference('default')
     
     # Run the Tkinter main loop
     root.mainloop()
