@@ -1186,7 +1186,8 @@ class IRCClient:
         
         # Preferences dictionary
         self.preferences = {
-            'theme': 'default'
+            'theme': 'default',
+            'show_tabs': False  # Default to hidden tabs
         }
         
         # Thread synchronization
@@ -1203,6 +1204,7 @@ class IRCClient:
         self.notebook = None  # Notebook widget for tabs
         self.tabs = {}  # Dictionary of tab frames keyed by tab_id
         self.current_tab = None  # Currently active tab id
+        self.tabs_visible = self.preferences.get('show_tabs', False)  # Tab visibility state
         
         # Pending connection attempts
         self.connection_attempts = {}
@@ -1227,12 +1229,6 @@ class IRCClient:
         # Create sidebar frame for server/channel tree
         self.sidebar_frame = ttk.Frame(self.main_paned, width=200)
         self.main_paned.add(self.sidebar_frame, weight=1)
-        
-        # Create sidebar header
-        sidebar_header = ttk.Frame(self.sidebar_frame)
-        sidebar_header.pack(fill=tk.X, padx=5, pady=5)
-        sidebar_label = ttk.Label(sidebar_header, text="Servers & Channels")
-        sidebar_label.pack(side=tk.LEFT)
         
         # Create network tree inside a frame with scrollbar
         self.tree_frame = ttk.Frame(self.sidebar_frame)
@@ -1266,6 +1262,11 @@ class IRCClient:
         self.notebook = ttk.Notebook(self.content_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        
+        # Apply tab visibility setting
+        if not self.tabs_visible:
+            style = ttk.Style()
+            style.layout('TNotebook.Tab', [])  # Empty layout removes the tabs
         
         # State for tree nodes
         self.server_nodes = {}  # Dictionary to track server nodes and their channels
@@ -1327,6 +1328,11 @@ class IRCClient:
         self.help_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.help_menu.add_command(label="About", command=self.show_about_dialog)
         self.menu_bar.add_cascade(label="Help", menu=self.help_menu)
+        
+        # View menu
+        self.view_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.view_menu.add_command(label="Show/Hide Tabs", command=self.toggle_tabs)
+        self.menu_bar.add_cascade(label="View", menu=self.view_menu)
         
         # Create status bar
         self.status_bar = ttk.Label(self.window, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
@@ -3871,6 +3877,40 @@ class IRCClient:
             print(f"Error in batched user update: {e}")
             import traceback
             traceback.print_exc()
+
+    def toggle_tabs(self):
+        """Toggle the visibility of tabs"""
+        self.tabs_visible = not self.tabs_visible
+        if self.tabs_visible:
+            self.show_tabs()
+        else:
+            self.hide_tabs()
+        # Save preference
+        self.preferences['show_tabs'] = self.tabs_visible
+        self.add_status_message(f"Tabs {'shown' if self.tabs_visible else 'hidden'}", 'status')
+
+    def show_tabs(self):
+        """Show the tabs in the notebook"""
+        style = ttk.Style()
+        style.layout('TNotebook.Tab', [])  # Remove the empty layout
+        style.layout('TNotebook.Tab', [
+            ('Notebook.tab', {
+                'sticky': 'nswe',
+                'children': [
+                    ('Notebook.padding', {
+                        'sticky': 'nswe',
+                        'children': [
+                            ('Notebook.label', {'sticky': 'nswe'})
+                        ]
+                    })
+                ]
+            })
+        ])
+
+    def hide_tabs(self):
+        """Hide the tabs in the notebook"""
+        style = ttk.Style()
+        style.layout('TNotebook.Tab', [])  # Empty layout removes the tabs
 
 def main():
     # Configuration info - but don't connect automatically
