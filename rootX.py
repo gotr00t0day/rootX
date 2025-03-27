@@ -886,6 +886,157 @@ class ChannelWindow:
             self.window.withdraw()
             self.minimized = True
 
+    def update_channel_users(self, channel_key):
+        """Update the users listbox for a channel if needed"""
+        # Use run_in_thread to avoid blocking the GUI during user list updates
+        self.run_in_thread(
+            lambda: self._force_update_users_for_channel(channel_key)
+        )
+    
+    def _force_update_users_for_channel(self, channel_key):
+        """Forcefully update the users listbox for a channel without any conditions"""
+        try:
+            if channel_key not in self.channel_windows:
+                return
+                
+            channel_info = self.channel_windows[channel_key]
+            
+            # Make sure users set exists
+            if 'users' not in channel_info:
+                channel_info['users'] = set()
+                
+            # Get the users list and sort with @ and + first
+            users = sorted(list(channel_info['users']), 
+                          key=lambda u: (
+                              0 if u.startswith('@') else (1 if u.startswith('+') else 2),  # First sort by prefix type
+                              u.lstrip('@+').lower()  # Then by nickname alphabetically
+                          ))
+            
+            # If there are too many users, use batched updates
+            if len(users) > 100:
+                # Schedule batched update on the main thread
+                self.window.after(0, lambda: self._batched_user_update(channel_key, users))
+                return
+            
+            # For smaller lists, update directly
+            # Make sure users_listbox exists
+            if 'users_listbox' not in channel_info:
+                return
+                
+            users_listbox = channel_info['users_listbox']
+            
+            # Update UI in the main thread
+            def update_ui():
+                # Clear the listbox
+                users_listbox.delete(0, tk.END)
+                
+                # Batch insert users - more efficient than one at a time
+                for i, user in enumerate(users):
+                    users_listbox.insert(tk.END, user)
+                    # Set color based on user prefix
+                    if user.startswith('@'):
+                        users_listbox.itemconfig(i, foreground='yellow')  # Ops
+                    elif user.startswith('+'):
+                        users_listbox.itemconfig(i, foreground='cyan')    # Voice
+                    else:
+                        users_listbox.itemconfig(i, foreground='white')   # Regular users
+                
+                # Make sure to update the users count label with the exact number of users displayed
+                actual_count = users_listbox.size()
+                if 'users_label' in channel_info:
+                    channel_info['users_label'].config(text=f"Users: {actual_count}")
+            
+            # Schedule UI update on the main thread
+            self.window.after(0, update_ui)
+                
+        except Exception as e:
+            print(f"Error updating users list: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _batched_user_update(self, channel_key, users=None):
+        """Update users listbox in batches to prevent UI freezing
+        
+        Args:
+            channel_key: The channel key to update
+            users: Optional pre-sorted user list 
+        """
+        try:
+            if channel_key not in self.channel_windows:
+                return
+                
+            channel_info = self.channel_windows[channel_key]
+            
+            # Get users set if not provided
+            if users is None:
+                users = sorted(list(channel_info['users']), 
+                             key=lambda u: (
+                                 0 if u.startswith('@') else (1 if u.startswith('+') else 2),
+                                 u.lstrip('@+').lower()
+                             ))
+            
+            # Make sure users_listbox exists
+            if 'users_listbox' not in channel_info:
+                return
+                
+            users_listbox = channel_info['users_listbox']
+            
+            # Clear the listbox first
+            users_listbox.delete(0, tk.END)
+            
+            # Store state for batched processing
+            batch_state = {
+                'users': users,
+                'current_index': 0,
+                'batch_size': 50,  # Process 50 users at a time
+                'total_inserted': 0  # Keep track of actual inserted users
+            }
+            
+            # Define function to process one batch
+            def process_batch():
+                if batch_state['current_index'] >= len(batch_state['users']):
+                    # Done - update the count with the ACTUAL number of users in the listbox
+                    if 'users_label' in channel_info:
+                        actual_count = users_listbox.size()
+                        channel_info['users_label'].config(text=f"Users: {actual_count}")
+                    return
+                
+                # Process next batch
+                start_idx = batch_state['current_index']
+                end_idx = min(start_idx + batch_state['batch_size'], len(batch_state['users']))
+                
+                for i in range(start_idx, end_idx):
+                    user = batch_state['users'][i]
+                    users_listbox.insert(tk.END, user)
+                    idx = users_listbox.size() - 1
+                    batch_state['total_inserted'] += 1
+                    
+                    # Set color based on user prefix
+                    if user.startswith('@'):
+                        users_listbox.itemconfig(idx, foreground='yellow')  # Ops
+                    elif user.startswith('+'):
+                        users_listbox.itemconfig(idx, foreground='cyan')    # Voice
+                    else:
+                        users_listbox.itemconfig(idx, foreground='white')   # Regular users
+                
+                # Update the label with current count while processing
+                if 'users_label' in channel_info:
+                    channel_info['users_label'].config(text=f"Users: {batch_state['total_inserted']}")
+                
+                # Update index for next batch
+                batch_state['current_index'] = end_idx
+                
+                # Schedule next batch - use short delay to allow UI to breathe
+                self.window.after(10, process_batch)
+            
+            # Start batch processing
+            self.window.after(0, process_batch)
+            
+        except Exception as e:
+            print(f"Error in batched user update: {e}")
+            import traceback
+            traceback.print_exc()
+
 class PrivateWindow:
     def __init__(self, irc_client, username, server):
         self.irc_client = irc_client
@@ -1048,6 +1199,11 @@ class IRCClient:
         self.private_windows = {}  # Use server:nickname as key
         self.status_window = None
         
+        # Tab-related variables
+        self.notebook = None  # Notebook widget for tabs
+        self.tabs = {}  # Dictionary of tab frames keyed by tab_id
+        self.current_tab = None  # Currently active tab id
+        
         # Pending connection attempts
         self.connection_attempts = {}
         self.reconnect_attempts = {}
@@ -1058,29 +1214,60 @@ class IRCClient:
         
         # Create main window
         self.window = master
-        self.window.title("RootX IRC Client")
+        self.window.title("RootXIRC")
         
-        # Create paned window
-        self.paned_window = ttk.PanedWindow(self.window, orient=tk.HORIZONTAL)
-        self.paned_window.pack(fill=tk.BOTH, expand=True)
+        # Create main container
+        self.main_container = ttk.Frame(self.window)
+        self.main_container.pack(fill=tk.BOTH, expand=True)
         
-        # Create network tree frame
-        self.network_frame = ttk.Frame(self.paned_window, width=200)
-        self.paned_window.add(self.network_frame, weight=1)
+        # Create main paned window to separate sidebar and content
+        self.main_paned = ttk.PanedWindow(self.main_container, orient=tk.HORIZONTAL)
+        self.main_paned.pack(fill=tk.BOTH, expand=True)
         
-        # Create network tree
-        self.network_tree = ttk.Treeview(self.network_frame, selectmode='browse')
-        self.network_tree.heading('#0', text='Network', anchor='w')
-        self.network_tree.pack(fill=tk.BOTH, expand=True)
+        # Create sidebar frame for server/channel tree
+        self.sidebar_frame = ttk.Frame(self.main_paned, width=200)
+        self.main_paned.add(self.sidebar_frame, weight=1)
         
-        # Bind event for selecting a node
+        # Create sidebar header
+        sidebar_header = ttk.Frame(self.sidebar_frame)
+        sidebar_header.pack(fill=tk.X, padx=5, pady=5)
+        sidebar_label = ttk.Label(sidebar_header, text="Servers & Channels")
+        sidebar_label.pack(side=tk.LEFT)
+        
+        # Create network tree inside a frame with scrollbar
+        self.tree_frame = ttk.Frame(self.sidebar_frame)
+        self.tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Add scrollbar for tree
+        tree_scrollbar = ttk.Scrollbar(self.tree_frame)
+        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Create the network tree
+        self.network_tree = ttk.Treeview(
+            self.tree_frame, 
+            selectmode='browse',
+            yscrollcommand=tree_scrollbar.set,
+            show='tree',
+            height=20
+        )
+        self.network_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tree_scrollbar.config(command=self.network_tree.yview)
+        
+        # Bind events for tree items
         self.network_tree.bind('<<TreeviewSelect>>', self.on_tree_select)
+        self.network_tree.bind('<Double-1>', self.on_tree_double_click)
+        self.network_tree.bind('<Button-3>', self.show_tree_menu)
         
-        # Create right content frame
-        self.content_frame = ttk.Frame(self.paned_window)
-        self.paned_window.add(self.content_frame, weight=4)
+        # Create content frame for notebook/tabs
+        self.content_frame = ttk.Frame(self.main_paned)
+        self.main_paned.add(self.content_frame, weight=3)
         
-        # State for node tracking
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(self.content_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+        
+        # State for tree nodes
         self.server_nodes = {}  # Dictionary to track server nodes and their channels
         
         # Create context menu for tree
@@ -1089,10 +1276,7 @@ class IRCClient:
         self.tree_menu.add_command(label="Disconnect", command=self.disconnect_selected)
         self.tree_menu.add_separator()
         self.tree_menu.add_command(label="Join Channel", command=self.show_join_dialog)
-        self.tree_menu.add_command(label="Close Window", command=self.close_selected)
-        
-        # Bind context menu
-        self.network_tree.bind("<Button-3>", self.show_tree_menu)
+        self.tree_menu.add_command(label="Close Tab", command=self.close_selected)
         
         # Load icons for tree - Create empty PhotoImage objects as fallbacks
         self.server_icon = tk.PhotoImage(width=1, height=1)
@@ -1100,7 +1284,7 @@ class IRCClient:
         self.pm_icon = tk.PhotoImage(width=1, height=1)
         
         try:
-            # Load icons if available
+            # Try to load icons if available
             from PIL import Image, ImageTk
             try:
                 server_img = Image.open("server.png").resize((16, 16))
@@ -1157,6 +1341,168 @@ class IRCClient:
         # Connect to default server if provided
         if server:
             self.connect_to_server(server, port, nickname)
+            
+    def on_tab_changed(self, event):
+        """Handle when user switches between tabs"""
+        selected_tab = self.notebook.select()
+        if not selected_tab:
+            return
+            
+        # Use run_with_busy_cursor to indicate processing during tab change
+        def tab_change_handler():
+            # Find the tab id (server:channel or status)
+            tab_id = None
+            for key, frame in self.tabs.items():
+                if str(frame) == str(selected_tab):
+                    tab_id = key
+                    break
+                    
+            if tab_id:
+                self.current_tab = tab_id
+                # If this is a channel tab, update current server and channel context
+                if ':' in tab_id and tab_id != 'status':
+                    server, channel = tab_id.split(':', 1)
+                    self.current_server = server
+                    
+                    # Update tree selection to match the current tab
+                    for server_id, server_data in self.server_nodes.items():
+                        if server_id == server:
+                            for chan, chan_id in server_data['channels'].items():
+                                if chan == channel:
+                                    self.network_tree.selection_set(chan_id)
+                                    break
+                                    
+                # Schedule user list update for channels with a delay to allow UI to refresh
+                if ':' in tab_id and tab_id in self.channel_windows:
+                    # Don't block the UI - schedule user list update after a short delay
+                    self.window.after(200, lambda: self.run_in_thread(
+                        lambda: self._force_update_users_for_channel(tab_id)
+                    ))
+        
+        # Run the tab change logic with busy cursor
+        self.run_with_busy_cursor(tab_change_handler)
+        
+    def show_channel_list(self):
+        """Show channel list dialog"""
+        if not self.current_server:
+            self.add_status_message("Not connected to any server")
+            return
+            
+        self.add_status_message(f"Requesting channel list from {self.current_server}")
+        
+        # Use run_in_thread to request channel list without freezing GUI
+        def request_channel_list(server):
+            try:
+                self.send_command("LIST", server)
+                return True
+            except Exception as e:
+                return e
+                
+        def on_list_requested(result):
+            if result is True:
+                self.add_status_message("Channel list request sent. Results will appear as they arrive.")
+            else:
+                self.add_status_message(f"Error requesting channel list: {result}", 'error')
+        
+        # Execute in background thread
+        self.run_in_thread(
+            request_channel_list, 
+            callback=on_list_requested,
+            server=self.current_server
+        )
+
+    def on_tree_double_click(self, event):
+        """Handle double-click on tree items to switch to the corresponding tab"""
+        item = self.network_tree.selection()[0]
+        item_tags = self.network_tree.item(item)['tags']
+        item_text = self.network_tree.item(item)['text']
+        
+        if 'server' in item_tags:
+            # For server nodes, we'll select the status tab
+            self.select_tab('status')
+            self.current_server = item_text
+        elif 'channel' in item_tags:
+            # For channel nodes, we'll select its tab
+            parent = self.network_tree.parent(item)
+            server = self.network_tree.item(parent)['text']
+            tab_id = f"{server}:{item_text}"
+            self.select_tab(tab_id)
+        elif 'private' in item_tags:
+            # For PM nodes, we'll select its tab
+            item_values = self.network_tree.item(item)['values']
+            if item_values and len(item_values) > 0:
+                tab_id = item_values[0]
+                self.select_tab(tab_id)
+            else:
+                # Backward compatibility for older versions
+                username = item_text
+                parent = self.network_tree.parent(item)  # Get PM category
+                server_node = self.network_tree.parent(parent)  # Get server node
+                server = self.network_tree.item(server_node)['text']
+                tab_id = f"{server}:{username}"
+                self.select_tab(tab_id)
+                
+    def select_tab(self, tab_id):
+        """Select and activate a tab in the notebook
+        
+        Args:
+            tab_id: The identifier of the tab to select (e.g., 'status', 'server_name', 'channel_name')
+        """
+        if tab_id in self.tabs:
+            tab_index = self.notebook.index(self.tabs[tab_id])
+            self.notebook.select(tab_index)
+            self.current_tab = tab_id
+            
+            # Set focus to the appropriate input field
+            if tab_id == 'status':
+                self.command_input.focus_set()
+            elif tab_id.startswith('#') or tab_id.startswith('pm:'):
+                # Channel or PM tabs
+                if hasattr(self, f'input_{tab_id.replace(":", "_")}'):
+                    getattr(self, f'input_{tab_id.replace(":", "_")}').focus_set()
+            else:
+                # Server tabs
+                if hasattr(self, f'input_{tab_id}'):
+                    getattr(self, f'input_{tab_id}').focus_set()
+                    
+            # Update the tree selection to match the tab
+            self.update_tree_selection(tab_id)
+    
+    def update_tree_selection(self, tab_id):
+        """Update the tree selection to match the active tab
+        
+        Args:
+            tab_id: The identifier of the current tab
+        """
+        for item in self.network_tree.get_children():
+            # Check if this is a server item
+            if tab_id == self.network_tree.item(item, 'text'):
+                self.network_tree.selection_set(item)
+                return
+                
+            # Check children for channels/PMs
+            for child in self.network_tree.get_children(item):
+                if tab_id == self.network_tree.item(child, 'text'):
+                    self.network_tree.selection_set(child)
+                    return
+                    
+        # If no match found and it's the status tab
+        if tab_id == 'status':
+            # Clear selection and select the first item (status)
+            self.network_tree.selection_set('')
+            if self.network_tree.get_children():
+                self.network_tree.selection_set(self.network_tree.get_children()[0])
+                
+    def on_tab_change(self, event):
+        """Handle tab change events"""
+        selected_tab = self.notebook.select()
+        if selected_tab:
+            # Find the tab_id for this tab widget
+            for tab_id, tab_widget in self.tabs.items():
+                if str(tab_widget) == str(selected_tab):
+                    self.current_tab = tab_id
+                    self.update_tree_selection(tab_id)
+                    break
 
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
@@ -1250,13 +1596,13 @@ class IRCClient:
                 'private_msgs': {}
             }
             self.current_server = server
-            print(f"Added server node with icon: {server}")  # Debug print
             return server_node
+        return self.server_nodes[server]['node']
 
-    def add_channel_node(self, channel):
-        """Add a channel under the current server"""
-        if self.current_server and self.current_server in self.server_nodes:
-            server_data = self.server_nodes[self.current_server]
+    def add_channel_node(self, channel, server):
+        """Add a channel under the specified server"""
+        if server and server in self.server_nodes:
+            server_data = self.server_nodes[server]
             if channel not in server_data['channels']:
                 channel_node = self.network_tree.insert(
                     server_data['node'], 'end',
@@ -1265,42 +1611,26 @@ class IRCClient:
                     image=self.channel_icon
                 )
                 server_data['channels'][channel] = channel_node
-                print(f"Added channel node with icon: {channel}")  # Debug print
+                return channel_node
+        return None
 
     def add_pm_node(self, username, server):
         """Add a private message node to the network tree under the correct server"""
-        if server not in self.server_nodes:
+        if not server or server not in self.server_nodes:
             # Server node doesn't exist, create it first
-            server_node = self.network_tree.insert("", "end", text=server, tags=("server",))
-            self.server_nodes[server] = {
-                'node': server_node,
-                'channels': {},
-                'private_msgs': {}
-            }
+            server_node = self.add_server_node(server)
         
-        # Get server node data
         server_data = self.server_nodes[server]
-        
-        # Add to private messages section
-        if username not in server_data.get('private_msgs', {}):
-            if 'private_msgs_node' not in server_data:
-                # Create 'Private Messages' category if it doesn't exist
-                server_data['private_msgs_node'] = self.network_tree.insert(
-                    server_data['node'], "end", text="Private Messages", tags=("category",)
-                )
-                # Initialize private_msgs dict if needed
-                if 'private_msgs' not in server_data:
-                    server_data['private_msgs'] = {}
-            
-            # Add the PM node
+        if username not in server_data['private_msgs']:
             pm_node = self.network_tree.insert(
-                server_data['private_msgs_node'], "end", text=username, tags=("private",)
+                server_data['node'], 'end',
+                text=f"PM: {username}",
+                tags=('pm',),
+                image=self.pm_icon
             )
             server_data['private_msgs'][username] = pm_node
-            
-            # Store the PM key for reference
-            pm_key = f"{server}:{username}"
-            self.network_tree.item(pm_node, values=(pm_key,))
+            return pm_node
+        return server_data['private_msgs'][username]
 
     def remove_channel_node(self, channel):
         """Remove a channel node"""
@@ -1372,58 +1702,252 @@ class IRCClient:
                 self.private_windows[sender].add_action(sender, params)
 
 
-    def create_private_window(self, username, server=None):
-        # If server is not specified, use current server
-        if not server:
-            server = self.current_server
-            
-        if not server:
-            self.add_status_message("Not connected to any server")
-            return None
-            
-        # Create a unique key for the PM window
+    def create_private_window(self, username, server):
+        """Create a private message window as a tab in the notebook"""
         pm_key = f"{server}:{username}"
         
-        # Check if PM window already exists
-        if pm_key in self.private_windows:
-            # Window exists, toggle visibility
-            window = self.private_windows[pm_key]
-            # Deiconify if minimized
-            window.window.deiconify()
-            window.window.lift()
-            return window
+        if pm_key not in self.private_windows:
+            # Create a new tab frame in the notebook
+            pm_tab = ttk.Frame(self.notebook)
             
-        # Create new PM window
-        window = PrivateWindow(self, username, server)
-        self.private_windows[pm_key] = window
-        return window
-        
-    def send_private_message(self, username, message, server):
-        if server not in self.connections:
-            self.add_status_message(f"Not connected to server: {server}")
+            # Create chat display
+            chat_display = scrolledtext.ScrolledText(pm_tab, wrap=tk.WORD)
+            chat_display.pack(fill=tk.BOTH, expand=True)
+            
+            # Configure text tags
+            chat_display.tag_configure('timestamp', foreground='gray')
+            chat_display.tag_configure('username', foreground='gray')
+            chat_display.tag_configure('my_username', foreground='magenta')
+            chat_display.tag_configure('message', foreground='white')
+            chat_display.tag_configure('action', foreground='purple')
+            
+            # Create input frame
+            input_frame = ttk.Frame(pm_tab)
+            input_frame.pack(fill=tk.X, pady=5)
+            
+            # Create message input
+            message_input = ttk.Entry(input_frame)
+            message_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+            setattr(self, f'input_{pm_key.replace(":", "_")}', message_input)
+            
+            # Create send button
+            send_button = ttk.Button(
+                input_frame, 
+                text="Send", 
+                command=lambda: self.send_pm_message(username, message_input.get(), server)
+            )
+            send_button.pack(side=tk.RIGHT, padx=5)
+            
+            # Bind Enter key to send message
+            message_input.bind('<Return>', lambda event: self.send_pm_message(username, message_input.get(), server))
+            
+            # Add the tab to the notebook with PM prefix for clarity
+            tab_text = f"PM: {username}"
+            self.notebook.add(pm_tab, text=tab_text)
+            
+            # Store tab in tabs dictionary with pm: prefix
+            tab_id = f"pm:{username}"
+            self.tabs[tab_id] = pm_tab
+            
+            # Create PM info object to store data
+            pm_info = {
+                'tab': pm_tab,
+                'chat_display': chat_display,
+                'message_input': message_input,
+                'server': server,
+                'username': username
+            }
+            
+            # Store in private_windows dictionary
+            self.private_windows[pm_key] = pm_info
+            
+            # Add to tree view
+            self.add_pm_node(username, server)
+            
+            # Add welcome message
+            self.add_pm_message(pm_key, f"* Started private chat with {username}")
+            
+            # Select the new tab
+            self.select_tab(tab_id)
+            
+            # Update status
+            self.add_status_message(f"Started private chat with {username} on {server}")
+        else:
+            # If window exists, just select the tab
+            self.select_tab(f"pm:{username}")
+            
+    def send_pm_message(self, username, message, server):
+        """Send a private message and update the PM tab"""
+        if not message.strip():
             return
             
-        conn = self.connections[server]
-        conn['socket'].send(f"PRIVMSG {username} :{message}\r\n".encode())
-        
+        pm_key = f"{server}:{username}"
+        if pm_key in self.private_windows:
+            # Send the message to the server
+            self.send_command(f"PRIVMSG {username} :{message}", server)
+            
+            # Get our nickname
+            current_nick = self.connections[server]['nickname']
+            
+            # Add message to the PM tab
+            self.add_pm_message(pm_key, f"{current_nick}: {message}")
+            
+            # Clear the input field
+            self.private_windows[pm_key]['message_input'].delete(0, tk.END)
+
     def create_channel_window(self, channel, server):
-        """Create a new channel window"""
+        """Create a new channel window as a tab in the notebook"""
         channel_key = f"{server}:{channel}"
         if channel_key not in self.channel_windows:
-            self.channel_windows[channel_key] = ChannelWindow(self, channel, server)
-            self.add_channel_node(channel)  # Add to tree
+            # Create a new tab frame in the notebook
+            channel_tab = ttk.Frame(self.notebook)
+            
+            # Create a paned window to separate chat and users
+            channel_paned = ttk.PanedWindow(channel_tab, orient=tk.HORIZONTAL)
+            channel_paned.pack(fill=tk.BOTH, expand=True)
+            
+            # Set up the channel tab with a vertical layout
+            channel_display_frame = ttk.Frame(channel_paned)
+            channel_paned.add(channel_display_frame, weight=3)  # Give chat area more space
+            
+            # Create topic label
+            topic_frame = ttk.Frame(channel_display_frame)
+            topic_frame.pack(fill=tk.X)
+            topic_label = ttk.Label(topic_frame, text="No topic set", wraplength=600)
+            topic_label.pack(fill=tk.X, padx=5, pady=5)
+            
+            # Create chat display with scrolled text
+            chat_display = scrolledtext.ScrolledText(channel_display_frame, wrap=tk.WORD)
+            chat_display.pack(fill=tk.BOTH, expand=True)
+            
+            # Configure text tags for different message types
+            chat_display.tag_configure('timestamp', foreground='gray')
+            chat_display.tag_configure('join', foreground='green')
+            chat_display.tag_configure('part', foreground='red')
+            chat_display.tag_configure('quit', foreground='red')
+            chat_display.tag_configure('nick', foreground='blue')
+            chat_display.tag_configure('username', foreground='gray')
+            chat_display.tag_configure('my_username', foreground='magenta')
+            chat_display.tag_configure('message', foreground='white')
+            chat_display.tag_configure('action', foreground='purple')
+            
+            # Create input frame
+            input_frame = ttk.Frame(channel_display_frame)
+            input_frame.pack(fill=tk.X, pady=5)
+            
+            # Create message input
+            message_input = ttk.Entry(input_frame)
+            message_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+            setattr(self, f'input_{channel_key.replace(":", "_")}', message_input)
+            
+            # Create send button
+            send_button = ttk.Button(
+                input_frame, 
+                text="Send", 
+                command=lambda: self.send_channel_message(channel, message_input.get(), server)
+            )
+            send_button.pack(side=tk.RIGHT, padx=5)
+            
+            # Bind Enter key to send message
+            message_input.bind('<Return>', lambda event: self.send_channel_message(channel, message_input.get(), server))
+            
+            # Create users panel on the right
+            users_frame = ttk.Frame(channel_paned)
+            channel_paned.add(users_frame, weight=1)  # Take up less space
+            
+            # Create users label
+            users_label = ttk.Label(users_frame, text="Users")
+            users_label.pack(pady=5)
+            
+            # Create users listbox with scrollbars
+            users_list_frame = ttk.Frame(users_frame)
+            users_list_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # Create scrollbars
+            users_scrollbar = ttk.Scrollbar(users_list_frame)
+            users_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            users_horizontal_scrollbar = ttk.Scrollbar(users_list_frame, orient=tk.HORIZONTAL)
+            users_horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+            
+            # Create listbox
+            users_listbox = tk.Listbox(
+                users_list_frame,
+                yscrollcommand=users_scrollbar.set,
+                xscrollcommand=users_horizontal_scrollbar.set
+            )
+            users_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            # Configure scrollbars
+            users_scrollbar.config(command=users_listbox.yview)
+            users_horizontal_scrollbar.config(command=users_listbox.xview)
+            
+            # Create right-click menu for users
+            user_menu = tk.Menu(users_listbox, tearoff=0)
+            user_menu.add_command(label="Private Message", command=lambda: self.open_pm_from_userlist(channel_key))
+            user_menu.add_command(label="Whois", command=lambda: self.whois_from_userlist(channel_key))
+            user_menu.add_separator()
+            user_menu.add_command(label="Op", command=lambda: self.op_from_userlist(channel_key))
+            user_menu.add_command(label="Deop", command=lambda: self.deop_from_userlist(channel_key))
+            user_menu.add_command(label="Voice", command=lambda: self.voice_from_userlist(channel_key))
+            user_menu.add_command(label="Devoice", command=lambda: self.devoice_from_userlist(channel_key))
+            user_menu.add_separator()
+            user_menu.add_command(label="Kick", command=lambda: self.kick_from_userlist(channel_key))
+            user_menu.add_command(label="Ban", command=lambda: self.ban_from_userlist(channel_key))
+            
+            # Bind user list context menu
+            users_listbox.bind("<Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))
+            
+            # Add the tab to the notebook
+            self.notebook.add(channel_tab, text=channel)
+            self.tabs[channel_key] = channel_tab
+            
+            # Create a ChannelInfo object to store channel data
+            channel_info = {
+                'tab': channel_tab,
+                'chat_display': chat_display,
+                'message_input': message_input,
+                'topic_label': topic_label,
+                'users': set(),
+                'users_listbox': users_listbox,
+                'user_menu': user_menu,
+                'batch_updating': False,
+                'names_buffer': set()
+            }
+            
+            # Store in channel_windows dictionary
+            self.channel_windows[channel_key] = channel_info
+            
+            # Add to tree view
+            self.add_channel_node(channel, server)
+            
+            # Request NAMES list for the channel
             self.send_command(f"NAMES {channel}", server)
+            
+            # Add join message
+            self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
+            
+            # Select the new tab
+            self.select_tab(channel_key)
+            
+            # Update status
             self.add_status_message(f"Joined channel: {channel} on {server}")
+        else:
+            # If already exists, just select the tab
+            self.select_tab(channel_key)
 
 
 
     def create_status_window(self):
-        """Create the status window in the content frame"""
-        # Create status window
-        self.status_window = ttk.Frame(self.content_frame)
-        self.status_window.pack(fill=tk.BOTH, expand=True)
+        """Create the status window as a tab in the notebook"""
+        # Create status tab frame
+        self.status_window = ttk.Frame(self.notebook)
+        self.tabs['status'] = self.status_window
         
-        # Create status display
+        # Add the tab to the notebook
+        self.notebook.add(self.status_window, text="Status")
+        
+        # Create status display in the tab
         self.status_display = scrolledtext.ScrolledText(self.status_window, wrap=tk.WORD)
         self.status_display.pack(fill=tk.BOTH, expand=True)
         
@@ -1442,10 +1966,51 @@ class IRCClient:
         self.command_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.command_input.bind('<Return>', self.handle_status_input)
         
+        # Add a send button
+        send_button = ttk.Button(self.input_frame, text="Send", command=self.handle_status_command)
+        send_button.pack(side=tk.RIGHT, padx=5)
+        
         # Welcome message
         self.add_status_message(f"Welcome to {self.version}")
         self.add_status_message("Use /server hostname port nickname to connect to an IRC server")
         self.add_status_message("Example: /server irc.libera.chat 6667 YourNickname")
+        
+        # Make status tab active
+        self.select_tab('status')
+        
+    def handle_status_input(self, event):
+        """Handle input in the status window"""
+        self.handle_status_command()
+        
+    def handle_status_command(self):
+        """Process a command from the status input"""
+        command = self.command_input.get().strip()
+        if not command:
+            return
+            
+        # Clear input field
+        self.command_input.delete(0, tk.END)
+        
+        # If it's a server command, process it
+        if command.startswith('/server'):
+            parts = command.split()
+            if len(parts) >= 2:
+                server = parts[1]
+                port = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 6667
+                nickname = parts[3] if len(parts) > 3 else self.default_nickname
+                self.connect_to_server(server, port, nickname)
+                return
+                
+        # For other commands, try to process with current server
+        if command.startswith('/'):
+            if self.current_server and self.current_server in self.connections:
+                self.process_command(command, self.current_server)
+            else:
+                self.add_status_message("Not connected to any server. Use /server to connect.", 'error')
+            return
+            
+        # Just display as a message if not a command
+        self.add_status_message(command)
 
     def show_about_dialog(self):
         """Show the About rootX dialog"""
@@ -1574,16 +2139,6 @@ class IRCClient:
             self.add_status_message("To join a channel on a specific server:")
             self.add_status_message("Example: /join #python irc.libera.chat")
 
-    def show_channel_list(self):
-        """Show channel list dialog"""
-        if not self.current_server:
-            self.add_status_message("Not connected to any server")
-            return
-            
-        self.add_status_message(f"Requesting channel list from {self.current_server}")
-        self.send_command("LIST", self.current_server)
-        self.add_status_message("Use /list to get a list of channels")
-        
     def show_connect_dialog(self):
         """Show a dialog to connect to a server"""
         if self.connections:
@@ -1721,9 +2276,39 @@ class IRCClient:
             self.connections[server]['socket'].send(f"{command}\r\n".encode('utf-8'))
 
         
-    def send_channel_message(self, channel, message):
-        self.send_command(f"PRIVMSG {channel} :{message}")
+    def send_channel_message(self, channel, message, server):
+        """Send a message to a channel and update the channel tab
         
+        Args:
+            channel: The channel name
+            message: The message to send
+            server: The server to send on
+        """
+        if not message.strip():
+            return
+            
+        # First try to handle commands
+        if message.startswith("/"):
+            self.process_command(message, server)
+            channel_key = f"{server}:{channel}"
+            if channel_key in self.channel_windows:
+                self.channel_windows[channel_key]['message_input'].delete(0, tk.END)
+            return
+            
+        # Send to the server
+        self.send_command(f"PRIVMSG {channel} :{message}", server)
+        
+        # Get our nickname
+        current_nick = self.connections[server]['nickname']
+        
+        # Add to the channel tab
+        channel_key = f"{server}:{channel}"
+        self.add_channel_message(channel_key, f"{current_nick}: {message}")
+        
+        # Clear the input field
+        if channel_key in self.channel_windows:
+            self.channel_windows[channel_key]['message_input'].delete(0, tk.END)
+
     def handle_command(self, command, current_channel):
         parts = command.split()
         cmd = parts[0].lower()
@@ -1848,13 +2433,18 @@ class IRCClient:
             print(f"Status: {message} (GUI error: {e})")
 
     def handle_server_message(self, data, server):
+        """Handle a message from the server"""
+        if not data:
+            return
+            
         try:
             if data.startswith('ERROR :') or 'Connection closed' in data:
                 error_msg = data.split(':', 1)[1].strip()
                 self.add_status_message(f"Server {server} disconnected: {error_msg}")
                 self.quit_server(server)
-                self.remove_server_node(server)  # Add this line
+                self.remove_server_node(server)
                 return
+                
             # Print raw data to status window for debugging
             self.add_status_message(f"DEBUG: {data}")
             
@@ -1878,28 +2468,34 @@ class IRCClient:
                         # Handle ACTION messages
                         if message.startswith('\x01ACTION') and message.endswith('\x01'):
                             action_text = message[8:-1]
-                            channel_key = f"{server}:{target}"
-                            if channel_key in self.channel_windows:
-                                self.channel_windows[channel_key].add_action(sender, action_text)
-                            elif sender in self.private_windows:
-                                self.private_windows[sender].add_action(sender, action_text)
+                            if target.startswith('#'):  # Channel action
+                                channel_key = f"{server}:{target}"
+                                if channel_key in self.channel_windows:
+                                    self.add_channel_action(channel_key, sender, action_text)
+                            else:  # Private message action
+                                pm_key = f"{server}:{sender}"
+                                if pm_key not in self.private_windows:
+                                    self.create_private_window(sender, server)
+                                self.add_pm_action(pm_key, sender, action_text)
                         else:
                             # Handle regular messages
                             if target.startswith('#'):  # Channel message
                                 channel_key = f"{server}:{target}"
                                 if channel_key in self.channel_windows:
-                                    self.channel_windows[channel_key].add_message(f"{sender}: {message}")
+                                    self.add_channel_message(channel_key, f"{sender}: {message}")
                             else:  # Private message
-                                if sender not in self.private_windows:
+                                pm_key = f"{server}:{sender}"
+                                if pm_key not in self.private_windows:
                                     self.create_private_window(sender, server)
-                                self.private_windows[sender].add_message(f"{sender}: {message}")
+                                self.add_pm_message(pm_key, f"{sender}: {message}")
                                 
-                    # Important: Return after processing PRIVMSG to prevent duplicate processing
+                    # Return after processing PRIVMSG to prevent duplicate processing
                     return
                 except Exception as e:
                     self.add_status_message(f"Error handling message: {e}")
                     return
 
+            # Handle MODE changes
             elif 'MODE' in data:
                 try:
                     parts = data.split()
@@ -1911,42 +2507,38 @@ class IRCClient:
                         
                         channel_key = f"{server}:{channel}"
                         if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
+                            channel_info = self.channel_windows[channel_key]
                             
                             if target:
                                 # Handle user modes
                                 if '+o' in mode:
                                     # Add @ to user in list
-                                    window.users.discard(target)
-                                    window.users.add(f"@{target}")
-                                    window.update_users_list()
-                                    window.add_action(setter, f"gives channel operator status to {target}")
+                                    channel_info['users'].discard(target)
+                                    channel_info['users'].add(f"@{target}")
+                                    self.update_channel_users(channel_key)
+                                    self.add_channel_message(channel_key, f"* {setter} gives channel operator status to {target}", 'status')
                                     
                                 elif '-o' in mode:
                                     # Remove @ from user
-                                    window.users.discard(f"@{target}")
-                                    window.users.add(target)
-                                    window.update_users_list()
-                                    window.add_action(setter, f"removes channel operator status from {target}")
+                                    channel_info['users'].discard(f"@{target}")
+                                    channel_info['users'].add(target)
+                                    self.update_channel_users(channel_key)
+                                    self.add_channel_message(channel_key, f"* {setter} removes channel operator status from {target}", 'status')
                                     
                                 elif '+v' in mode:
                                     # Add + to user
-                                    window.users.discard(target)
-                                    window.users.add(f"+{target}")
-                                    window.update_users_list()
-                                    window.add_action(setter, f"gives voice to {target}")
+                                    channel_info['users'].discard(target)
+                                    channel_info['users'].add(f"+{target}")
+                                    self.update_channel_users(channel_key)
+                                    self.add_channel_message(channel_key, f"* {setter} gives voice to {target}", 'status')
                                     
                                 elif '-v' in mode:
                                     # Remove + from user
-                                    window.users.discard(f"+{target}")
-                                    window.users.add(target)
-                                    window.update_users_list()
-                                    window.add_action(setter, f"removes voice from {target}")
-                                    
-                            print(f"DEBUG - Mode change: {setter} sets {mode} on {channel} for {target}")
-                            
+                                    channel_info['users'].discard(f"+{target}")
+                                    channel_info['users'].add(target)
+                                    self.update_channel_users(channel_key)
+                                    self.add_channel_message(channel_key, f"* {setter} removes voice from {target}", 'status')
                 except Exception as e:
-                    print(f"Error handling mode: {e}")
                     self.add_status_message(f"Error handling mode: {e}")
 
             # Handle JOIN messages
@@ -1957,20 +2549,17 @@ class IRCClient:
                         user = parts[0].lstrip(':')
                         channel = data.split('JOIN')[1].strip().lstrip(':')
                         channel_key = f"{server}:{channel}"
-                        print(f"DEBUG - JOIN: {user} to {channel_key}")  # Debug print
                         
                         if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
-                            window.users.add(user)
-                            window.update_users_list()
-                            window.add_message(f"* {user} has joined {channel}")
+                            channel_info = self.channel_windows[channel_key]
+                            channel_info['users'].add(user)
+                            self.update_channel_users(channel_key)
+                            self.add_channel_message(channel_key, f"* {user} has joined {channel}", 'join')
                             
                             # Request NAMES list if we joined
                             if user == self.connections[server]['nickname']:
                                 self.send_command(f"NAMES {channel}", server)
-                                
                 except Exception as e:
-                    print(f"Error handling JOIN: {e}")  # Debug print
                     self.add_status_message(f"Error handling join: {e}")
 
             # Handle NAMES reply (numeric 353)
@@ -1982,36 +2571,31 @@ class IRCClient:
                     # Split the message parts
                     parts = data.split()
                     for i, part in enumerate(parts):
-                        if part in ['=', '*', '@']:  # Channel type indicators
-                            if i + 1 < len(parts):
-                                channel = parts[i + 1]
-                                break
+                        if part in ['=', '*', '@'] and i + 1 < len(parts):  # Channel type indicators
+                            channel = parts[i + 1]
+                            break
                         elif part.startswith('#'):
                             channel = part
                             break
                     
                     if channel:
                         channel_key = f"{server}:{channel}"
-                        print(f"DEBUG - Processing NAMES for {channel_key}")  # Debug print
                         
                         if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
+                            channel_info = self.channel_windows[channel_key]
                             
                             # Get the users part (after the last ':')
                             users_part = data.split(':', 2)[-1].strip()
                             users = users_part.split()
                             
-                            print(f"DEBUG - Users found: {users}")  # Debug print
-                            
                             # Start batch update if not already started
-                            if not window.batch_updating:
-                                window.begin_batch_update()
+                            if not channel_info['batch_updating']:
+                                channel_info['batch_updating'] = True
+                                channel_info['names_buffer'] = set()
                             
                             # Add users to buffer
-                            window.names_buffer.update(users)
-                            
+                            channel_info['names_buffer'].update(users)
                 except Exception as e:
-                    print(f"Error processing NAMES: {e}")  # Debug print
                     self.add_status_message(f"Error processing NAMES: {e}")
                     
             # Handle end of NAMES list (numeric 366)
@@ -2027,18 +2611,19 @@ class IRCClient:
                     
                     if channel:
                         channel_key = f"{server}:{channel}"
-                        print(f"DEBUG - End of NAMES for {channel_key}")  # Debug print
                         
                         if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
-                            # End batch update and process
-                            window.end_batch_update()
-                            print(f"DEBUG - Final user list: {window.users}")  # Debug print
+                            channel_info = self.channel_windows[channel_key]
                             
+                            # End batch update and process
+                            if channel_info['batch_updating']:
+                                channel_info['users'] = channel_info['names_buffer']
+                                channel_info['batch_updating'] = False
+                                self.update_channel_users(channel_key)
                 except Exception as e:
-                    print(f"Error handling end of NAMES: {e}")  # Debug print
                     self.add_status_message(f"Error handling end of NAMES: {e}")
 
+            # Handle PART messages
             elif 'PART' in data:
                 try:
                     parts = data.split('!')
@@ -2047,99 +2632,288 @@ class IRCClient:
                         channel = data.split('PART')[1].split()[0].strip()
                         channel_key = f"{server}:{channel}"
                         if channel_key in self.channel_windows:
-                            self.channel_windows[channel_key].users.discard(user)
-                            self.channel_windows[channel_key].update_users_list()
-                            self.channel_windows[channel_key].add_message(f"* {user} has left {channel}")
+                            channel_info = self.channel_windows[channel_key]
+                            # Remove user with any prefix
+                            for u in list(channel_info['users']):
+                                if u == user or u.lstrip('@+') == user:
+                                    channel_info['users'].discard(u)
+                            self.update_channel_users(channel_key)
+                            self.add_channel_message(channel_key, f"* {user} has left {channel}", 'part')
                 except Exception as e:
                     self.add_status_message(f"Error handling part: {e}")
 
-            if 'KICK' in data:
+            # Handle KICK messages
+            elif 'KICK' in data:
                 try:
-                    parts = data.split()
-                    if len(parts) >= 4:
-                        kicker = parts[0].split('!')[0].lstrip(':')
-                        channel = parts[2]
-                        kicked_user = parts[3]
-                        reason = data.split(':', 2)[-1].strip() if ':' in data else "No reason given"
+                    parts = data.split('!')
+                    if len(parts) > 1:
+                        kicker = parts[0].lstrip(':')
+                        kicked_parts = data.split('KICK')[1].split(':', 1)
+                        channel_and_user = kicked_parts[0].strip().split()
+                        channel = channel_and_user[0]
+                        kicked_user = channel_and_user[1]
+                        reason = kicked_parts[1].strip() if len(kicked_parts) > 1 else "No reason given"
                         
                         channel_key = f"{server}:{channel}"
                         if channel_key in self.channel_windows:
-                            window = self.channel_windows[channel_key]
+                            channel_info = self.channel_windows[channel_key]
                             
-                            # Add kick message to channel
-                            timestamp = datetime.now().strftime("[%H:%M:%S]")
-                            window.chat_display.insert(tk.END, 
-                                f"{timestamp} * {kicked_user} was kicked by {kicker} ({reason})\n", 
-                                'kick')
-                            window.chat_display.see(tk.END)
+                            # Remove the kicked user from users list
+                            for u in list(channel_info['users']):
+                                if u == kicked_user or u.lstrip('@+') == kicked_user:
+                                    channel_info['users'].discard(u)
+                            self.update_channel_users(channel_key)
                             
-                            # If we're the one who got kicked
                             if kicked_user == self.connections[server]['nickname']:
-                                # Remove from network tree
-                                self.remove_channel_node(channel)
-                                
-                                # Remove from channel windows dict and destroy window
-                                window.window.destroy()
-                                del self.channel_windows[channel_key]
-                                
-                                self.add_status_message(f"You were kicked from {channel} by {kicker} ({reason})")
+                                # We were kicked
+                                self.add_channel_message(channel_key, f"* You were kicked from {channel} by {kicker} ({reason})", 'part')
+                                # Close the tab after a delay
+                                self.master.after(5000, lambda: self.close_channel_tab(channel_key))
                             else:
-                                # Someone else was kicked, update the user list
-                                window.remove_user(kicked_user)
-                                
-                            print(f"DEBUG - Kick processed: {kicked_user} from {channel} by {kicker}")
-                            
+                                self.add_channel_message(channel_key, f"* {kicked_user} was kicked from {channel} by {kicker} ({reason})", 'part')
                 except Exception as e:
-                    print(f"Error handling kick: {e}")
                     self.add_status_message(f"Error handling kick: {e}")
 
+            # Handle QUIT messages
             elif 'QUIT' in data:
                 try:
                     parts = data.split('!')
                     if len(parts) > 1:
                         user = parts[0].lstrip(':')
-                        quit_message = data.split(':', 2)[-1].strip()
-                        # Remove user from all channels they were in
-                        for channel_window in self.channel_windows.values():
-                            if user in channel_window.users:
-                                channel_window.users.discard(user)
-                                channel_window.update_users_list()
-                                channel_window.add_message(f"* {user} has quit ({quit_message})")
+                        quit_msg = data.split('QUIT')[1].strip()
+                        if ':' in quit_msg:
+                            quit_msg = quit_msg.split(':', 1)[1].strip()
+                        
+                        # Update all channel windows where this user was present
+                        for channel_key, channel_info in self.channel_windows.items():
+                            if channel_key.startswith(f"{server}:"):
+                                # Check all users (including those with prefixes)
+                                for u in list(channel_info['users']):
+                                    if u == user or u.lstrip('@+') == user:
+                                        channel_info['users'].discard(u)
+                                        self.update_channel_users(channel_key)
+                                        self.add_channel_message(channel_key, f"* {user} has quit ({quit_msg})", 'quit')
+                                        break
                 except Exception as e:
                     self.add_status_message(f"Error handling quit: {e}")
 
+            # Handle nickname changes
             elif 'NICK' in data:
                 try:
                     parts = data.split('!')
                     if len(parts) > 1:
                         old_nick = parts[0].lstrip(':')
-                        new_nick = data.split(':', 2)[-1].strip()
+                        new_nick = data.split('NICK')[1].strip().lstrip(':')
                         
-                        # Update nickname in server connections if it's our nick
+                        # Update all channel windows where this user was present
+                        for channel_key, channel_info in self.channel_windows.items():
+                            if channel_key.startswith(f"{server}:"):
+                                # Check if old_nick is in users list (with or without prefix)
+                                user_found = False
+                                for u in list(channel_info['users']):
+                                    if u == old_nick or u.lstrip('@+') == old_nick:
+                                        prefix = ''
+                                        if u.startswith('@'):
+                                            prefix = '@'
+                                        elif u.startswith('+'):
+                                            prefix = '+'
+                                        
+                                        # Remove old nick and add new nick with same prefix
+                                        channel_info['users'].discard(u)
+                                        channel_info['users'].add(f"{prefix}{new_nick}")
+                                        user_found = True
+                                        break
+                                
+                                if user_found:
+                                    self.update_channel_users(channel_key)
+                                    self.add_channel_message(channel_key, f"* {old_nick} is now known as {new_nick}", 'nick')
+                        
+                        # Update our own nickname if it's us
                         if old_nick == self.connections[server]['nickname']:
                             self.connections[server]['nickname'] = new_nick
-                        
-                        # Update nickname in all channels
-                        for channel_window in self.channel_windows.values():
-                            if old_nick in channel_window.users:
-                                channel_window.users.discard(old_nick)
-                                channel_window.users.add(new_nick)
-                                channel_window.update_users_list()
-                                channel_window.add_message(f"* {old_nick} is now known as {new_nick}")
+                            self.add_status_message(f"Your nickname on {server} is now {new_nick}")
                 except Exception as e:
-                    self.add_status_message(f"Error handling nick: {e}")
+                    self.add_status_message(f"Error handling nick change: {e}")
 
+            # Handle topic change
+            elif 'TOPIC' in data:
+                try:
+                    parts = data.split('!')
+                    if len(parts) > 1:
+                        setter = parts[0].lstrip(':')
+                        topic_parts = data.split('TOPIC')[1].split(':', 1)
+                        channel = topic_parts[0].strip()
+                        topic = topic_parts[1].strip() if len(topic_parts) > 1 else ""
+                        
+                        channel_key = f"{server}:{channel}"
+                        if channel_key in self.channel_windows:
+                            # Update the topic label
+                            channel_info = self.channel_windows[channel_key]
+                            channel_info['topic_label'].config(text=topic if topic else "No topic set")
+                            
+                            # Add message to channel
+                            self.add_channel_message(channel_key, f"* {setter} has changed the topic to: {topic}", 'status')
+                except Exception as e:
+                    self.add_status_message(f"Error handling topic change: {e}")
+                    
+            # Handle topic reply (numeric 332)
+            elif ' 332 ' in data:
+                try:
+                    parts = data.split(' 332 ')[1].split(':', 1)
+                    channel = parts[0].strip().split()[1]
+                    topic = parts[1].strip() if len(parts) > 1 else "No topic set"
+                    
+                    channel_key = f"{server}:{channel}"
+                    if channel_key in self.channel_windows:
+                        # Update the topic label
+                        channel_info = self.channel_windows[channel_key]
+                        channel_info['topic_label'].config(text=topic)
+                except Exception as e:
+                    self.add_status_message(f"Error handling topic reply: {e}")
+                
         except Exception as e:
-            self.add_status_message(f"Error parsing server message: {e}")
-            
+            self.add_status_message(f"Error processing message: {e}")
+
     def create_channel_window(self, channel, server):
-        """Create a new channel window"""
+        """Create a new channel window as a tab in the notebook"""
         channel_key = f"{server}:{channel}"
         if channel_key not in self.channel_windows:
-            self.channel_windows[channel_key] = ChannelWindow(self, channel, server)
-            self.add_channel_node(channel)  # Add to tree
+            # Create a new tab frame in the notebook
+            channel_tab = ttk.Frame(self.notebook)
+            
+            # Create a paned window to separate chat and users
+            channel_paned = ttk.PanedWindow(channel_tab, orient=tk.HORIZONTAL)
+            channel_paned.pack(fill=tk.BOTH, expand=True)
+            
+            # Set up the channel tab with a vertical layout
+            channel_display_frame = ttk.Frame(channel_paned)
+            channel_paned.add(channel_display_frame, weight=3)  # Give chat area more space
+            
+            # Create topic label
+            topic_frame = ttk.Frame(channel_display_frame)
+            topic_frame.pack(fill=tk.X)
+            topic_label = ttk.Label(topic_frame, text="No topic set", wraplength=600)
+            topic_label.pack(fill=tk.X, padx=5, pady=5)
+            
+            # Create chat display with scrolled text
+            chat_display = scrolledtext.ScrolledText(channel_display_frame, wrap=tk.WORD)
+            chat_display.pack(fill=tk.BOTH, expand=True)
+            
+            # Configure text tags for different message types
+            chat_display.tag_configure('timestamp', foreground='gray')
+            chat_display.tag_configure('join', foreground='green')
+            chat_display.tag_configure('part', foreground='red')
+            chat_display.tag_configure('quit', foreground='red')
+            chat_display.tag_configure('nick', foreground='blue')
+            chat_display.tag_configure('username', foreground='gray')
+            chat_display.tag_configure('my_username', foreground='magenta')
+            chat_display.tag_configure('message', foreground='white')
+            chat_display.tag_configure('action', foreground='purple')
+            
+            # Create input frame
+            input_frame = ttk.Frame(channel_display_frame)
+            input_frame.pack(fill=tk.X, pady=5)
+            
+            # Create message input
+            message_input = ttk.Entry(input_frame)
+            message_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+            setattr(self, f'input_{channel_key.replace(":", "_")}', message_input)
+            
+            # Create send button
+            send_button = ttk.Button(
+                input_frame, 
+                text="Send", 
+                command=lambda: self.send_channel_message(channel, message_input.get(), server)
+            )
+            send_button.pack(side=tk.RIGHT, padx=5)
+            
+            # Bind Enter key to send message
+            message_input.bind('<Return>', lambda event: self.send_channel_message(channel, message_input.get(), server))
+            
+            # Create users panel on the right
+            users_frame = ttk.Frame(channel_paned)
+            channel_paned.add(users_frame, weight=1)  # Take up less space
+            
+            # Create users label
+            users_label = ttk.Label(users_frame, text="Users")
+            users_label.pack(pady=5)
+            
+            # Create users listbox with scrollbars
+            users_list_frame = ttk.Frame(users_frame)
+            users_list_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # Create scrollbars
+            users_scrollbar = ttk.Scrollbar(users_list_frame)
+            users_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            
+            users_horizontal_scrollbar = ttk.Scrollbar(users_list_frame, orient=tk.HORIZONTAL)
+            users_horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+            
+            # Create listbox
+            users_listbox = tk.Listbox(
+                users_list_frame,
+                yscrollcommand=users_scrollbar.set,
+                xscrollcommand=users_horizontal_scrollbar.set
+            )
+            users_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            # Configure scrollbars
+            users_scrollbar.config(command=users_listbox.yview)
+            users_horizontal_scrollbar.config(command=users_listbox.xview)
+            
+            # Create right-click menu for users
+            user_menu = tk.Menu(users_listbox, tearoff=0)
+            user_menu.add_command(label="Private Message", command=lambda: self.open_pm_from_userlist(channel_key))
+            user_menu.add_command(label="Whois", command=lambda: self.whois_from_userlist(channel_key))
+            user_menu.add_separator()
+            user_menu.add_command(label="Op", command=lambda: self.op_from_userlist(channel_key))
+            user_menu.add_command(label="Deop", command=lambda: self.deop_from_userlist(channel_key))
+            user_menu.add_command(label="Voice", command=lambda: self.voice_from_userlist(channel_key))
+            user_menu.add_command(label="Devoice", command=lambda: self.devoice_from_userlist(channel_key))
+            user_menu.add_separator()
+            user_menu.add_command(label="Kick", command=lambda: self.kick_from_userlist(channel_key))
+            user_menu.add_command(label="Ban", command=lambda: self.ban_from_userlist(channel_key))
+            
+            # Bind user list context menu
+            users_listbox.bind("<Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))
+            
+            # Add the tab to the notebook
+            self.notebook.add(channel_tab, text=channel)
+            self.tabs[channel_key] = channel_tab
+            
+            # Create a ChannelInfo object to store channel data
+            channel_info = {
+                'tab': channel_tab,
+                'chat_display': chat_display,
+                'message_input': message_input,
+                'topic_label': topic_label,
+                'users': set(),
+                'users_listbox': users_listbox,
+                'user_menu': user_menu,
+                'batch_updating': False,
+                'names_buffer': set()
+            }
+            
+            # Store in channel_windows dictionary
+            self.channel_windows[channel_key] = channel_info
+            
+            # Add to tree view
+            self.add_channel_node(channel, server)
+            
+            # Request NAMES list for the channel
             self.send_command(f"NAMES {channel}", server)
+            
+            # Add join message
+            self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
+            
+            # Select the new tab
+            self.select_tab(channel_key)
+            
+            # Update status
             self.add_status_message(f"Joined channel: {channel} on {server}")
+        else:
+            # If already exists, just select the tab
+            self.select_tab(channel_key)
 
 
 
@@ -2283,8 +3057,13 @@ class IRCClient:
     def run(self):
         """Start the IRC client"""
         try:
-            # Start the GUI main loop
-            self.status_window.mainloop()
+            # Start periodic task processor to keep UI responsive
+            self.process_deferred_ui_tasks()
+            
+            # Start the main loop
+            self.window.mainloop()
+        except Exception as e:
+            print(f"Error in main loop: {e}")
         finally:
             # Cleanup when the program exits
             self.running = False
@@ -2298,8 +3077,8 @@ class IRCClient:
                 
                 # Wait for all receive threads to terminate
                 for server, thread in list(self.receive_threads.items()):
-                    thread.join(0.5)  # Short timeout 
-                    
+                    thread.join(0.5)  # Short timeout
+
     def receive_data(self, server):
         """Receive and process data from a specific server connection"""
         try:
@@ -2377,53 +3156,217 @@ class IRCClient:
             self.add_status_message(f"Receive thread for {server} terminated")
 
     def on_tree_select(self, event):
-        """Handle when a node is selected in the network tree"""
-        selection = self.network_tree.selection()
-        if not selection:
+        """Handle tree item selection"""
+        selected = self.network_tree.selection()
+        if not selected:
             return
             
-        item = selection[0]
-        item_text = self.network_tree.item(item)['text']
+        item = selected[0]
         item_tags = self.network_tree.item(item)['tags']
-        item_values = self.network_tree.item(item)['values']
+        item_text = self.network_tree.item(item)['text']
         
+        # Server node selected
         if 'server' in item_tags:
-            # Server node selected - set as current server
             self.current_server = item_text
+            # Display the server in status window
             self.add_status_message(f"Selected server: {item_text}")
             
+        # Channel node selected
         elif 'channel' in item_tags:
-            # Channel node selected
-            # Get the server from the parent item
+            # Get the server from the parent node
             parent = self.network_tree.parent(item)
             server = self.network_tree.item(parent)['text']
             
-            # Create channel key and focus the window if it exists
+            # Create the channel_key
             channel_key = f"{server}:{item_text}"
+            
+            # Select the corresponding tab
             if channel_key in self.channel_windows:
-                self.channel_windows[channel_key].window.deiconify()
-                self.channel_windows[channel_key].window.lift()
+                self.select_tab(channel_key)
+            
+        # PM node selected
+        elif 'pm' in item_tags:
+            # Extract the username from "PM: username"
+            username = item_text.replace("PM: ", "")
+            
+            # Get the server from the parent node
+            parent = self.network_tree.parent(item)
+            server = self.network_tree.item(parent)['text']
+            
+            # Create the pm_key
+            pm_key = f"{server}:{username}"
+            
+            # Select the corresponding tab
+            if pm_key in self.private_windows:
+                tab_id = f"pm:{username}"
+                self.select_tab(tab_id)
+
+    def process_command(self, message, server):
+        """Process commands that start with /
+        
+        Args:
+            message: The message to process
+            server: The server to run the command on
+        """
+        if not message.startswith('/'):
+            return False
+            
+        # Extract command and arguments
+        parts = message.split(' ', 1)
+        command = parts[0][1:].lower()  # Remove / and make lowercase
+        args = parts[1] if len(parts) > 1 else ""
+        
+        # Handle various commands
+        if command == 'join':
+            channel = args.split()[0] if args else ""
+            if channel:
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"JOIN {channel}", server)
+                return True
                 
-        elif 'private' in item_tags:
-            # Private message node selected
-            # Get the PM key from the item values
-            if item_values and len(item_values) > 0:
-                pm_key = item_values[0]
-                if pm_key in self.private_windows:
-                    self.private_windows[pm_key].window.deiconify()
-                    self.private_windows[pm_key].window.lift()
-            else:
-                # Backward compatibility - try to get the server from the parent's parent
-                username = item_text
-                parent = self.network_tree.parent(item)  # Get PM category
-                server_node = self.network_tree.parent(parent)  # Get server node
-                server = self.network_tree.item(server_node)['text']
+        elif command == 'part':
+            channel = args.split()[0] if args else ""
+            reason = ' '.join(args.split()[1:]) if len(args.split()) > 1 else "Leaving"
+            if channel:
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"PART {channel} :{reason}", server)
+                return True
                 
-                # Try both with the new format and old format
-                pm_key = f"{server}:{username}"
-                if pm_key in self.private_windows:
-                    self.private_windows[pm_key].window.deiconify()
-                    self.private_windows[pm_key].window.lift()
+        elif command == 'quit':
+            reason = args if args else "Leaving"
+            self.quit_server(server, reason)
+            return True
+            
+        elif command == 'msg' or command == 'query':
+            parts = args.split(' ', 1)
+            if len(parts) >= 2:
+                target = parts[0]
+                msg = parts[1]
+                self.send_command(f"PRIVMSG {target} :{msg}", server)
+                
+                # For query, also open a PM window
+                if command == 'query' and not target.startswith('#'):
+                    self.create_private_window(target, server)
+                return True
+                
+        elif command == 'nick':
+            new_nick = args.strip()
+            if new_nick:
+                self.send_command(f"NICK {new_nick}", server)
+                return True
+                
+        elif command == 'me':
+            if self.current_tab and ':' in self.current_tab:
+                server_name, channel = self.current_tab.split(':', 1)
+                if server_name == server:
+                    self.send_command(f"PRIVMSG {channel} :\x01ACTION {args}\x01", server)
+                    # Add to display
+                    if channel.startswith('#'):
+                        self.add_channel_action(self.current_tab, self.connections[server]['nickname'], args)
+                    else:
+                        self.add_pm_action(self.current_tab, self.connections[server]['nickname'], args)
+                    return True
+                    
+        elif command == 'whois':
+            target = args.split()[0] if args else ""
+            if target:
+                self.send_command(f"WHOIS {target}", server)
+                return True
+                
+        elif command == 'kick':
+            parts = args.split()
+            if len(parts) >= 2:
+                channel = parts[0]
+                user = parts[1]
+                reason = ' '.join(parts[2:]) if len(parts) > 2 else "Kicked"
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"KICK {channel} {user} :{reason}", server)
+                return True
+                
+        elif command == 'ban':
+            parts = args.split()
+            if len(parts) >= 2:
+                channel = parts[0]
+                user = parts[1]
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"MODE {channel} +b {user}!*@*", server)
+                return True
+                
+        elif command == 'op':
+            parts = args.split()
+            if len(parts) >= 2:
+                channel = parts[0]
+                user = parts[1]
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"MODE {channel} +o {user}", server)
+                return True
+                
+        elif command == 'deop':
+            parts = args.split()
+            if len(parts) >= 2:
+                channel = parts[0]
+                user = parts[1]
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"MODE {channel} -o {user}", server)
+                return True
+                
+        elif command == 'voice':
+            parts = args.split()
+            if len(parts) >= 2:
+                channel = parts[0]
+                user = parts[1]
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"MODE {channel} +v {user}", server)
+                return True
+                
+        elif command == 'devoice':
+            parts = args.split()
+            if len(parts) >= 2:
+                channel = parts[0]
+                user = parts[1]
+                if not channel.startswith('#'):
+                    channel = f"#{channel}"
+                self.send_command(f"MODE {channel} -v {user}", server)
+                return True
+                
+        elif command == 'topic':
+            if self.current_tab and ':' in self.current_tab:
+                server_name, channel = self.current_tab.split(':', 1)
+                if server_name == server and channel.startswith('#'):
+                    if args:
+                        self.send_command(f"TOPIC {channel} :{args}", server)
+                    else:
+                        self.send_command(f"TOPIC {channel}", server)
+                    return True
+                    
+        elif command == 'mode':
+            parts = args.split()
+            if len(parts) >= 2:
+                target = parts[0]
+                mode = parts[1]
+                params = ' '.join(parts[2:]) if len(parts) > 2 else ""
+                self.send_command(f"MODE {target} {mode} {params}", server)
+                return True
+                
+        elif command == 'server':
+            parts = args.split()
+            if len(parts) >= 1:
+                new_server = parts[0]
+                port = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 6667
+                nickname = parts[2] if len(parts) > 2 else self.default_nickname
+                self.connect_to_server(new_server, port, nickname)
+                return True
+        
+        # If no command matched, send as raw command
+        self.send_command(message[1:], server)
+        return True
 
     def show_tree_menu(self, event):
         """Show context menu for tree items"""
@@ -2444,25 +3387,25 @@ class IRCClient:
             self.tree_menu.entryconfig("Connect", state="normal")
             self.tree_menu.entryconfig("Disconnect", state="normal")
             self.tree_menu.entryconfig("Join Channel", state="normal")
-            self.tree_menu.entryconfig("Close Window", state="disabled")
+            self.tree_menu.entryconfig("Close Tab", state="disabled")
         elif 'channel' in item_tags:
             # Channel context menu
             self.tree_menu.entryconfig("Connect", state="disabled")
             self.tree_menu.entryconfig("Disconnect", state="disabled")
             self.tree_menu.entryconfig("Join Channel", state="disabled")
-            self.tree_menu.entryconfig("Close Window", state="normal")
-        elif 'private' in item_tags:
+            self.tree_menu.entryconfig("Close Tab", state="normal")
+        elif 'pm' in item_tags:
             # PM context menu
             self.tree_menu.entryconfig("Connect", state="disabled")
             self.tree_menu.entryconfig("Disconnect", state="disabled")
             self.tree_menu.entryconfig("Join Channel", state="disabled")
-            self.tree_menu.entryconfig("Close Window", state="normal")
+            self.tree_menu.entryconfig("Close Tab", state="normal")
         else:
             # Other item or no item - disable all
             self.tree_menu.entryconfig("Connect", state="disabled")
             self.tree_menu.entryconfig("Disconnect", state="disabled")
             self.tree_menu.entryconfig("Join Channel", state="disabled")
-            self.tree_menu.entryconfig("Close Window", state="disabled")
+            self.tree_menu.entryconfig("Close Tab", state="disabled")
             
         # Display the menu
         self.tree_menu.tk_popup(event.x_root, event.y_root)
@@ -2501,7 +3444,7 @@ class IRCClient:
                 self.add_status_message(f"Not connected to {server}")
                 
     def close_selected(self):
-        """Close the selected window"""
+        """Close the selected window or tab"""
         selection = self.network_tree.selection()
         if not selection:
             return
@@ -2520,29 +3463,22 @@ class IRCClient:
             if channel_key in self.channel_windows:
                 # Part the channel
                 self.send_command(f"PART {item_text}", server)
-                # Close the window
-                self.channel_windows[channel_key].on_closing()
+                # Close the tab
+                self.close_channel_tab(channel_key)
                 
-        elif 'private' in item_tags:
-            # Get values which should contain the PM key
-            item_values = self.network_tree.item(item)['values']
-            if item_values and len(item_values) > 0:
-                pm_key = item_values[0]
-                if pm_key in self.private_windows:
-                    self.private_windows[pm_key].on_closing()
-            else:
-                # Backward compatibility
-                username = item_text
-                # Try to get server from parent's parent
-                parent = self.network_tree.parent(item)
-                server_node = self.network_tree.parent(parent)
-                server = self.network_tree.item(server_node)['text']
-                
-                # Try with both formats
-                pm_key = f"{server}:{username}"
-                if pm_key in self.private_windows:
-                    self.private_windows[pm_key].on_closing()
-
+        elif 'pm' in item_tags:
+            # Extract the username from "PM: username"
+            username = item_text.replace("PM: ", "")
+            
+            # Get the server from the parent
+            parent = self.network_tree.parent(item)
+            server = self.network_tree.item(parent)['text']
+            
+            # Create the pm_key
+            pm_key = f"{server}:{username}"
+            if pm_key in self.private_windows:
+                self.close_pm_tab(pm_key)
+     
     def on_exit(self):
         """Handle application exit"""
         # Disconnect from all servers
@@ -2554,6 +3490,340 @@ class IRCClient:
             
         # Destroy the main window
         self.window.destroy()
+
+    # Add these methods for UI responsiveness
+    def process_deferred_ui_tasks(self):
+        """Process UI tasks in small chunks to avoid freezing the GUI"""
+        try:
+            # Process Tkinter events to keep UI responsive
+            self.window.update_idletasks()
+        except Exception as e:
+            print(f"Error in process_deferred_ui_tasks: {e}")
+        finally:
+            # Re-schedule this method to run periodically
+            self.window.after(50, self.process_deferred_ui_tasks)
+    
+    def run_with_busy_cursor(self, func, *args, **kwargs):
+        """Run a function with busy cursor to indicate processing
+        
+        Args:
+            func: The function to run
+            *args: Arguments to pass to the function
+            **kwargs: Keyword arguments to pass to the function
+        """
+        original_cursor = self.window.cget("cursor")
+        try:
+            # Show busy cursor
+            self.window.config(cursor="watch")
+            self.window.update_idletasks()
+            
+            # Call the function
+            result = func(*args, **kwargs)
+            
+            return result
+        finally:
+            # Restore original cursor
+            self.window.config(cursor=original_cursor)
+            self.window.update_idletasks()
+    
+    def run_in_thread(self, func, callback=None, *args, **kwargs):
+        """Run a function in a background thread to avoid blocking the GUI
+        
+        Args:
+            func: The function to run in the background
+            callback: Optional function to call in the main thread when done
+            *args: Arguments to pass to the function
+            **kwargs: Keyword arguments to pass to the function
+        """
+        def thread_func():
+            try:
+                result = func(*args, **kwargs)
+                
+                # If callback provided, schedule it in the main thread
+                if callback:
+                    self.window.after(0, lambda: callback(result))
+            except Exception as e:
+                print(f"Error in background thread: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Start the thread
+        thread = threading.Thread(target=thread_func)
+        thread.daemon = True
+        thread.start()
+        
+        return thread
+    
+    def add_channel_message(self, channel_key, message, tag=None):
+        """Add a message to a channel tab
+        
+        Args:
+            channel_key: The channel key in format server:channel
+            message: The message to add
+            tag: Optional tag for styling
+        """
+        if channel_key in self.channel_windows:
+            # Get the channel info
+            channel_info = self.channel_windows[channel_key]
+            chat_display = channel_info['chat_display']
+            
+            # Add timestamp
+            timestamp = datetime.now().strftime("[%H:%M:%S]")
+            chat_display.insert(tk.END, f"{timestamp} ", 'timestamp')
+            
+            # Add message with tag if specified
+            if tag:
+                chat_display.insert(tk.END, f"{message}\n", tag)
+            else:
+                # Parse for username if message is in format "username: message"
+                if ': ' in message:
+                    username, text = message.split(': ', 1)
+                    current_nick = self.connections.get(channel_key.split(':')[0], {}).get('nickname', '')
+                    
+                    if username == current_nick:
+                        chat_display.insert(tk.END, f"{username}: ", 'my_username')
+                    else:
+                        chat_display.insert(tk.END, f"{username}: ", 'username')
+                    
+                    chat_display.insert(tk.END, f"{text}\n", 'message')
+                else:
+                    chat_display.insert(tk.END, f"{message}\n", 'message')
+            
+            # Scroll to bottom
+            chat_display.see(tk.END)
+            
+    def add_channel_action(self, channel_key, sender, action_text):
+        """Add an action message to a channel tab
+        
+        Args:
+            channel_key: The channel key in format server:channel
+            sender: The username performing the action
+            action_text: The action text
+        """
+        if channel_key in self.channel_windows:
+            channel_info = self.channel_windows[channel_key]
+            chat_display = channel_info['chat_display']
+            
+            # Add timestamp
+            timestamp = datetime.now().strftime("[%H:%M:%S]")
+            chat_display.insert(tk.END, f"{timestamp} ", 'timestamp')
+            
+            # Add action
+            chat_display.insert(tk.END, f"* {sender} {action_text}\n", 'action')
+            
+            # Scroll to bottom
+            chat_display.see(tk.END)
+            
+    def add_pm_message(self, pm_key, message, tag=None):
+        """Add a message to a private message tab
+        
+        Args:
+            pm_key: The PM key in format server:username
+            message: The message to add
+            tag: Optional tag for styling
+        """
+        if pm_key in self.private_windows:
+            # Get the PM info
+            pm_info = self.private_windows[pm_key]
+            chat_display = pm_info['chat_display']
+            
+            # Add timestamp
+            timestamp = datetime.now().strftime("[%H:%M:%S]")
+            chat_display.insert(tk.END, f"{timestamp} ", 'timestamp')
+            
+            # Add message with tag if specified
+            if tag:
+                chat_display.insert(tk.END, f"{message}\n", tag)
+            else:
+                # Parse for username if message is in format "username: message"
+                if ': ' in message:
+                    username, text = message.split(': ', 1)
+                    current_nick = self.connections.get(pm_key.split(':')[0], {}).get('nickname', '')
+                    
+                    if username == current_nick:
+                        chat_display.insert(tk.END, f"{username}: ", 'my_username')
+                    else:
+                        chat_display.insert(tk.END, f"{username}: ", 'username')
+                    
+                    chat_display.insert(tk.END, f"{text}\n", 'message')
+                else:
+                    chat_display.insert(tk.END, f"{message}\n", 'message')
+            
+            # Scroll to bottom
+            chat_display.see(tk.END)
+            
+    def add_pm_action(self, pm_key, sender, action_text):
+        """Add an action message to a private message tab
+        
+        Args:
+            pm_key: The PM key in format server:username
+            sender: The username performing the action
+            action_text: The action text
+        """
+        if pm_key in self.private_windows:
+            pm_info = self.private_windows[pm_key]
+            chat_display = pm_info['chat_display']
+            
+            # Add timestamp
+            timestamp = datetime.now().strftime("[%H:%M:%S]")
+            chat_display.insert(tk.END, f"{timestamp} ", 'timestamp')
+            
+            # Add action
+            chat_display.insert(tk.END, f"* {sender} {action_text}\n", 'action')
+            
+            # Scroll to bottom
+            chat_display.see(tk.END)
+
+    def update_channel_users(self, channel_key):
+        """Update the users listbox for a channel if needed"""
+        # Use run_in_thread to avoid blocking the GUI during user list updates
+        self.run_in_thread(
+            lambda: self._force_update_users_for_channel(channel_key)
+        )
+    
+    def _force_update_users_for_channel(self, channel_key):
+        """Forcefully update the users listbox for a channel without any conditions"""
+        try:
+            if channel_key not in self.channel_windows:
+                return
+                
+            channel_info = self.channel_windows[channel_key]
+            
+            # Make sure users set exists
+            if 'users' not in channel_info:
+                channel_info['users'] = set()
+                
+            # Get the users list and sort with @ and + first
+            users = sorted(list(channel_info['users']), 
+                          key=lambda u: (
+                              0 if u.startswith('@') else (1 if u.startswith('+') else 2),  # First sort by prefix type
+                              u.lstrip('@+').lower()  # Then by nickname alphabetically
+                          ))
+            
+            # If there are too many users, use batched updates
+            if len(users) > 100:
+                # Schedule batched update on the main thread
+                self.window.after(0, lambda: self._batched_user_update(channel_key, users))
+                return
+            
+            # For smaller lists, update directly
+            # Make sure users_listbox exists
+            if 'users_listbox' not in channel_info:
+                return
+                
+            users_listbox = channel_info['users_listbox']
+            
+            # Update UI in the main thread
+            def update_ui():
+                # Clear the listbox
+                users_listbox.delete(0, tk.END)
+                
+                # Batch insert users - more efficient than one at a time
+                for i, user in enumerate(users):
+                    users_listbox.insert(tk.END, user)
+                    # Set color based on user prefix
+                    if user.startswith('@'):
+                        users_listbox.itemconfig(i, foreground='yellow')  # Ops
+                    elif user.startswith('+'):
+                        users_listbox.itemconfig(i, foreground='cyan')    # Voice
+                    else:
+                        users_listbox.itemconfig(i, foreground='white')   # Regular users
+                
+                # Make sure to update the users count label with the exact number of users displayed
+                actual_count = users_listbox.size()
+                if 'users_label' in channel_info:
+                    channel_info['users_label'].config(text=f"Users: {actual_count}")
+            
+            # Schedule UI update on the main thread
+            self.window.after(0, update_ui)
+                
+        except Exception as e:
+            print(f"Error updating users list: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _batched_user_update(self, channel_key, users=None):
+        """Update users listbox in batches to prevent UI freezing
+        
+        Args:
+            channel_key: The channel key to update
+            users: Optional pre-sorted user list 
+        """
+        try:
+            if channel_key not in self.channel_windows:
+                return
+                
+            channel_info = self.channel_windows[channel_key]
+            
+            # Get users set if not provided
+            if users is None:
+                users = sorted(list(channel_info['users']), 
+                             key=lambda u: (
+                                 0 if u.startswith('@') else (1 if u.startswith('+') else 2),
+                                 u.lstrip('@+').lower()
+                             ))
+            
+            # Make sure users_listbox exists
+            if 'users_listbox' not in channel_info:
+                return
+                
+            users_listbox = channel_info['users_listbox']
+            
+            # Clear the listbox first
+            users_listbox.delete(0, tk.END)
+            
+            # Store state for batched processing
+            batch_state = {
+                'users': users,
+                'current_index': 0,
+                'batch_size': 50,  # Process 50 users at a time
+                'total_inserted': 0  # Keep track of actual inserted users
+            }
+            
+            # Define function to process one batch
+            def process_batch():
+                if batch_state['current_index'] >= len(batch_state['users']):
+                    # Done - update the count with the ACTUAL number of users in the listbox
+                    if 'users_label' in channel_info:
+                        actual_count = users_listbox.size()
+                        channel_info['users_label'].config(text=f"Users: {actual_count}")
+                    return
+                
+                # Process next batch
+                start_idx = batch_state['current_index']
+                end_idx = min(start_idx + batch_state['batch_size'], len(batch_state['users']))
+                
+                for i in range(start_idx, end_idx):
+                    user = batch_state['users'][i]
+                    users_listbox.insert(tk.END, user)
+                    idx = users_listbox.size() - 1
+                    batch_state['total_inserted'] += 1
+                    
+                    # Set color based on user prefix
+                    if user.startswith('@'):
+                        users_listbox.itemconfig(idx, foreground='yellow')  # Ops
+                    elif user.startswith('+'):
+                        users_listbox.itemconfig(idx, foreground='cyan')    # Voice
+                    else:
+                        users_listbox.itemconfig(idx, foreground='white')   # Regular users
+                
+                # Update the label with current count while processing
+                if 'users_label' in channel_info:
+                    channel_info['users_label'].config(text=f"Users: {batch_state['total_inserted']}")
+                
+                # Update index for next batch
+                batch_state['current_index'] = end_idx
+                
+                # Schedule next batch - use short delay to allow UI to breathe
+                self.window.after(10, process_batch)
+            
+            # Start batch processing
+            self.window.after(0, process_batch)
+            
+        except Exception as e:
+            print(f"Error in batched user update: {e}")
+            import traceback
+            traceback.print_exc()
 
 def main():
     # Configuration info - but don't connect automatically
