@@ -1037,6 +1037,43 @@ class ChannelWindow:
             import traceback
             traceback.print_exc()
 
+    def show_user_context_menu(self, event, channel_key):
+        """Display the user context menu at the click position."""
+        try:
+            # Get the specific channel's info
+            if channel_key not in self.channel_windows:
+                print(f"Error: Channel info not found for {channel_key}")
+                return
+            channel_info = self.channel_windows[channel_key]
+            users_listbox = channel_info.get('users_listbox')
+            user_menu = channel_info.get('user_menu') # Get the correct menu
+            
+            if not users_listbox or not user_menu:
+                print(f"Error: Listbox or menu not found for {channel_key}")
+                return
+
+            # Get clicked item index
+            clicked_index = users_listbox.nearest(event.y)
+            if clicked_index >= 0:
+                # Select the clicked item
+                users_listbox.selection_clear(0, tk.END)
+                users_listbox.selection_set(clicked_index)
+                users_listbox.activate(clicked_index) # Highlight the selected item
+                
+                # Show menu at mouse position relative to screen
+                user_menu.tk_popup(event.x_root, event.y_root)
+        except Exception as e:
+            print(f"Error showing user context menu: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Keep the old method name for now, but make it specific to double-click PM
+    def show_user_menu(self, event):
+        # This method is now primarily for the old double-click binding, 
+        # which we might re-purpose or remove later.
+        # For now, it can delegate or simply pass.
+        pass # Or potentially call open_private_message if that's the desired double-click action
+
 class PrivateWindow:
     def __init__(self, irc_client, username, server):
         self.irc_client = irc_client
@@ -1543,32 +1580,15 @@ class IRCClient:
     def remove_server_node(self, server):
         """Remove a server node and all its child nodes from the tree"""
         if server in self.server_nodes:
-            # Get server data
             server_data = self.server_nodes[server]
             
-            # Close all channel windows for this server
-            channels_to_close = [
-                key for key in list(self.channel_windows.keys())
-                if key.startswith(f"{server}:")
-            ]
-            for channel_key in channels_to_close:
-                if channel_key in self.channel_windows:
-                    try:
-                        self.channel_windows[channel_key].on_closing()
-                    except Exception as e:
-                        print(f"Error closing channel window {channel_key}: {e}")
+            # Use close_channel_tab for proper cleanup
+            for channel in list(server_data.get('channels', {}).keys()):
+                self.close_channel_tab(channel, server)
             
-            # Close all PM windows for this server
-            pms_to_close = [
-                key for key in list(self.private_windows.keys())
-                if key.startswith(f"{server}:")
-            ]
-            for pm_key in pms_to_close:
-                if pm_key in self.private_windows:
-                    try:
-                        self.private_windows[pm_key].on_closing()
-                    except Exception as e:
-                        print(f"Error closing PM window {pm_key}: {e}")
+            # Use close_pm_tab for proper cleanup
+            for username in list(server_data.get('private_msgs', {}).keys()):
+                self.close_pm_tab(username, server)
             
             # Delete the server node from the tree
             try:
@@ -1582,8 +1602,6 @@ class IRCClient:
             # If this was the current server, set current_server to None
             if self.current_server == server:
                 self.current_server = None
-                
-                # If there are other servers, set one as current
                 if self.connections:
                     self.current_server = next(iter(self.connections.keys()))
 
@@ -1654,37 +1672,43 @@ class IRCClient:
             traceback.print_exc()
 
     def close_channel_tab(self, channel, server):
-        """Close a channel tab and remove it from the tree view."""
+        """Close a channel tab and clean up resources"""
         try:
-            # Remove from channel_windows
             channel_key = f"{server}:{channel}"
+            self.add_status_message(f"Closing channel: {channel}")
+            
+            # Remove channel node from tree
+            self.remove_channel_node(channel, server)
+            
+            # Send PART command if we're still connected
+            if server in self.connections:
+                try:
+                    self.send_command(f"PART {channel}", server)
+                except Exception as e:
+                    print(f"Error sending PART command: {e}")
+            
+            # Close the tab/window
             if channel_key in self.channel_windows:
-                # Get the tab and tab_id
-                channel_tab = self.channel_windows[channel_key]['tab']
+                channel_info = self.channel_windows[channel_key]
                 
-                # Remove from notebook by finding the tab's index
-                tab_index = self.notebook.index(channel_tab)
-                if tab_index is not None:
-                    self.notebook.forget(tab_index)
+                # Remove tab from notebook if it exists
+                if 'tab' in channel_info and channel_info['tab'] in self.notebook.tabs():
+                    self.notebook.forget(channel_info['tab'])
                 
-                # Clean up channel_windows entry
+                # Delete channel info from dictionary
                 del self.channel_windows[channel_key]
                 
                 # Remove from tabs dictionary
                 if channel_key in self.tabs:
                     del self.tabs[channel_key]
                 
-                # Remove from treeview
-                self.remove_channel_node(channel, server)
-                
-                # Switch to status tab if this was the active tab
-                current_tab = self.notebook.select()
-                if not current_tab or current_tab == str(channel_tab):
-                    self.select_tab("status")
-                    
-                self.add_status_message(f"Closed channel {channel} on {server}", "info")
+                # Select status tab if no other tabs remain
+                if len(self.notebook.tabs()) == 1:
+                    self.select_tab('status')
+            else:
+                print(f"Channel {channel_key} not found in channel_windows")
         except Exception as e:
-            self.add_status_message(f"Error closing channel tab: {e}", "error")
+            print(f"Error closing channel tab: {e}")
             traceback.print_exc()
 
     def remove_pm_node(self, username):
@@ -1843,147 +1867,181 @@ class IRCClient:
             self.private_windows[pm_key]['message_input'].delete(0, tk.END)
 
     def create_channel_window(self, channel, server):
-        """Create a new channel window as a tab in the notebook"""
+        """Create a new channel window"""
         channel_key = f"{server}:{channel}"
-        if channel_key not in self.channel_windows:
-            # Create a new tab frame in the notebook
-            channel_tab = ttk.Frame(self.notebook)
-            
-            # Create a paned window to separate chat and users
-            channel_paned = ttk.PanedWindow(channel_tab, orient=tk.HORIZONTAL)
-            channel_paned.pack(fill=tk.BOTH, expand=True)
-            
-            # Set up the channel tab with a vertical layout
-            channel_display_frame = ttk.Frame(channel_paned)
-            channel_paned.add(channel_display_frame, weight=3)  # Give chat area more space
-            
-            # Create topic label
-            topic_frame = ttk.Frame(channel_display_frame)
-            topic_frame.pack(fill=tk.X)
-            topic_label = ttk.Label(topic_frame, text="No topic set", wraplength=600)
-            topic_label.pack(fill=tk.X, padx=5, pady=5)
-            
-            # Create chat display with scrolled text
-            chat_display = scrolledtext.ScrolledText(channel_display_frame, wrap=tk.WORD)
-            chat_display.pack(fill=tk.BOTH, expand=True)
-            
-            # Configure text tags for different message types
-            chat_display.tag_configure('timestamp', foreground='gray')
-            chat_display.tag_configure('join', foreground='green')
-            chat_display.tag_configure('part', foreground='red')
-            chat_display.tag_configure('quit', foreground='red')
-            chat_display.tag_configure('nick', foreground='blue')
-            chat_display.tag_configure('username', foreground='gray')
-            chat_display.tag_configure('my_username', foreground='magenta')
-            chat_display.tag_configure('message', foreground='white')
-            chat_display.tag_configure('action', foreground='purple')
-            
-            # Create input frame
-            input_frame = ttk.Frame(channel_display_frame)
-            input_frame.pack(fill=tk.X, pady=5)
-            
-            # Create message input
-            message_input = ttk.Entry(input_frame)
-            message_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-            setattr(self, f'input_{channel_key.replace(":", "_")}', message_input)
-            
-            # Create send button
-            send_button = ttk.Button(
-                input_frame, 
-                text="Send", 
-                command=lambda: self.send_channel_message(channel, message_input.get(), server)
-            )
-            send_button.pack(side=tk.RIGHT, padx=5)
-            
-            # Bind Enter key to send message
-            message_input.bind('<Return>', lambda event: self.send_channel_message(channel, message_input.get(), server))
-            
-            # Create users panel on the right
-            users_frame = ttk.Frame(channel_paned)
-            channel_paned.add(users_frame, weight=1)  # Take up less space
-            
-            # Create users label
-            users_label = ttk.Label(users_frame, text="Users")
-            users_label.pack(pady=5)
-            
-            # Create users listbox with scrollbars
-            users_list_frame = ttk.Frame(users_frame)
-            users_list_frame.pack(fill=tk.BOTH, expand=True)
-            
-            # Create scrollbars
-            users_scrollbar = ttk.Scrollbar(users_list_frame)
-            users_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            users_horizontal_scrollbar = ttk.Scrollbar(users_list_frame, orient=tk.HORIZONTAL)
-            users_horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-            
-            # Create listbox
-            users_listbox = tk.Listbox(
-                users_list_frame,
-                yscrollcommand=users_scrollbar.set,
-                xscrollcommand=users_horizontal_scrollbar.set
-            )
-            users_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            
-            # Configure scrollbars
-            users_scrollbar.config(command=users_listbox.yview)
-            users_horizontal_scrollbar.config(command=users_listbox.xview)
-            
-            # Create right-click menu for users
-            user_menu = tk.Menu(users_listbox, tearoff=0)
-            user_menu.add_command(label="Private Message", command=lambda: self.open_pm_from_userlist(channel_key))
-            user_menu.add_command(label="Whois", command=lambda: self.whois_from_userlist(channel_key))
-            user_menu.add_separator()
-            user_menu.add_command(label="Op", command=lambda: self.op_from_userlist(channel_key))
-            user_menu.add_command(label="Deop", command=lambda: self.deop_from_userlist(channel_key))
-            user_menu.add_command(label="Voice", command=lambda: self.voice_from_userlist(channel_key))
-            user_menu.add_command(label="Devoice", command=lambda: self.devoice_from_userlist(channel_key))
-            user_menu.add_separator()
-            user_menu.add_command(label="Kick", command=lambda: self.kick_from_userlist(channel_key))
-            user_menu.add_command(label="Ban", command=lambda: self.ban_from_userlist(channel_key))
-            
-            # Bind user list context menu
-            users_listbox.bind("<Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))
-            
-            # Add the tab to the notebook
-            self.notebook.add(channel_tab, text=channel)
-            self.tabs[channel_key] = channel_tab
-            
-            # Create a ChannelInfo object to store channel data
-            channel_info = {
-                'tab': channel_tab,
-                'chat_display': chat_display,
-                'message_input': message_input,
-                'topic_label': topic_label,
-                'users': set(),
-                'users_listbox': users_listbox,
-                'user_menu': user_menu,
-                'batch_updating': False,
-                'names_buffer': set()
-            }
-            
-            # Store in channel_windows dictionary
-            self.channel_windows[channel_key] = channel_info
-            
-            # Add to tree view
-            self.add_channel_node(channel, server)
-            
-            # Request NAMES list for the channel
-            self.send_command(f"NAMES {channel}", server)
-            
-            # Add join message
-            self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
-            
-            # Select the new tab
+        if channel_key in self.channel_windows:
             self.select_tab(channel_key)
-            
-            # Update status
-            self.add_status_message(f"Joined channel: {channel} on {server}")
-        else:
-            # If already exists, just select the tab
-            self.select_tab(channel_key)
+            return # Already exists, just select it
+
+        # --- Create Main Tab Frame ---
+        channel_tab = ttk.Frame(self.notebook)
+
+        # --- Top Frame for Topic ---
+        topic_outer_frame = ttk.Frame(channel_tab)
+        topic_outer_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=(5, 0)) # Padding top/bottom
+        topic_frame = ttk.Frame(topic_outer_frame, relief=tk.GROOVE, borderwidth=1)
+        topic_frame.pack(fill=tk.X, expand=True)
+        topic_label = ttk.Label(topic_frame, text="Requesting topic...", wraplength=600, padding=3)
+        topic_label.pack(fill=tk.X, padx=2, pady=2) # Internal padding
+
+        # --- Main Paned Window for Chat/Users ---
+        paned = ttk.PanedWindow(channel_tab, orient=tk.HORIZONTAL)
+        paned.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # --- Left Pane: Chat Area ---
+        chat_frame = ttk.Frame(paned)
+        paned.add(chat_frame, weight=3) # Chat area takes more space
+
+        # Chat display
+        chat_display = scrolledtext.ScrolledText(chat_frame, wrap=tk.WORD)
+        chat_display.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Configure text tags (Add all necessary tags here)
+        chat_display.tag_configure('timestamp', foreground='gray')
+        chat_display.tag_configure('join', foreground='green')
+        chat_display.tag_configure('part', foreground='red')
+        chat_display.tag_configure('quit', foreground='red')
+        chat_display.tag_configure('nick', foreground='blue')
+        chat_display.tag_configure('username', foreground='gray')
+        chat_display.tag_configure('my_username', foreground='magenta')
+        chat_display.tag_configure('message', foreground='white')
+        chat_display.tag_configure('action', foreground='purple')
+        chat_display.tag_configure('status', foreground='cyan')
+        chat_display.tag_configure('error', foreground='orange')
 
 
+        # Input area (at the bottom of the chat frame)
+        input_frame = ttk.Frame(chat_frame)
+        input_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(5, 0))
+
+        message_input = ttk.Entry(input_frame)
+        message_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        setattr(self, f'input_{channel_key.replace(":", "_")}', message_input) # For focus setting
+
+        send_button = ttk.Button(input_frame, text="Send",
+                               command=lambda: self.send_channel_message(channel, message_input.get(), server))
+        send_button.pack(side=tk.RIGHT)
+
+        # Bind Enter key
+        message_input.bind('<Return>', lambda event: self.send_channel_message(channel, message_input.get(), server))
+
+        # --- Right Pane: Users Panel ---
+        users_panel_frame = ttk.Frame(paned)
+        paned.add(users_panel_frame, weight=1) # User list takes less space
+
+        # Users label (inside the right panel, above the list)
+        users_label = ttk.Label(users_panel_frame, text="Users: 0")
+        users_label.pack(side=tk.TOP, padx=5, pady=(0, 2)) # Align top, remove fill=tk.X
+
+        # Users list frame (contains listbox and scrollbars)
+        users_list_frame = ttk.Frame(users_panel_frame)
+        users_list_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5) # Fill remaining space
+
+        # Scrollbars
+        users_scrollbar = ttk.Scrollbar(users_list_frame)
+        users_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        users_horizontal_scrollbar = ttk.Scrollbar(users_list_frame, orient=tk.HORIZONTAL)
+        users_horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Listbox
+        users_listbox = tk.Listbox(users_list_frame,
+                                 yscrollcommand=users_scrollbar.set,
+                                 xscrollcommand=users_horizontal_scrollbar.set,
+                                 activestyle='none') # Optional: better selection look
+        users_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Configure scrollbars
+        users_scrollbar.config(command=users_listbox.yview)
+        users_horizontal_scrollbar.config(command=users_listbox.xview)
+
+        # User Menu
+        user_menu = tk.Menu(users_listbox, tearoff=0)
+        user_menu.add_command(label="Private Message", command=lambda: self.open_pm_from_userlist(channel_key))
+        user_menu.add_command(label="Whois", command=lambda: self.whois_from_userlist(channel_key))
+        user_menu.add_separator()
+        user_menu.add_command(label="Op", command=lambda: self.op_from_userlist(channel_key))
+        user_menu.add_command(label="Deop", command=lambda: self.deop_from_userlist(channel_key))
+        user_menu.add_command(label="Voice", command=lambda: self.voice_from_userlist(channel_key))
+        user_menu.add_command(label="Devoice", command=lambda: self.devoice_from_userlist(channel_key))
+        user_menu.add_separator()
+        user_menu.add_command(label="Kick", command=lambda: self.kick_from_userlist(channel_key))
+        user_menu.add_command(label="Ban", command=lambda: self.ban_from_userlist(channel_key))
+
+        # Bind user list context menu
+        # users_listbox.bind("<Double-Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck)) # Removed double right-click
+        users_listbox.bind("<Double-Button-1>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck)) # Double left-click shows menu
+
+
+        # --- Final Setup ---
+        # Add the tab to the notebook
+        self.notebook.add(channel_tab, text=channel)
+        self.tabs[channel_key] = channel_tab
+
+        # Store channel info
+        channel_info = {
+            'tab': channel_tab,
+            'chat_display': chat_display,
+            'message_input': message_input,
+            'topic_label': topic_label,
+            'users_label': users_label, # Crucial: store the correct label
+            'users': set(),
+            'users_listbox': users_listbox,
+            'user_menu': user_menu,
+            'batch_updating': False,
+            'names_buffer': set()
+        }
+        self.channel_windows[channel_key] = channel_info
+
+        # Add node to the network tree
+        self.add_channel_node(channel, server)
+
+        # Request initial data
+        self.send_command(f"NAMES {channel}", server)
+        self.send_command(f"TOPIC {channel}", server)
+
+        # Display join message
+        self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
+
+        # Activate the new tab
+        self.select_tab(channel_key)
+
+        # Update status bar
+        self.add_status_message(f"Joined channel: {channel} on {server}")
+
+    def open_pm_from_userlist(self, channel_key):
+        """Open a private message window for the selected user in a channel list."""
+        try:
+            if channel_key not in self.channel_windows:
+                self.add_status_message(f"Error: Channel key {channel_key} not found.", 'error')
+                return
+                
+            channel_info = self.channel_windows[channel_key]
+            users_listbox = channel_info.get('users_listbox')
+            
+            if not users_listbox:
+                self.add_status_message("Error: User listbox not found for channel.", 'error')
+                return
+
+            selected_indices = users_listbox.curselection()
+            if not selected_indices:
+                # No user selected, maybe add a status message or just return
+                return 
+
+            selected_user = users_listbox.get(selected_indices[0])
+            
+            # Extract username (remove prefix)
+            username = selected_user.lstrip('@+')
+            
+            # Extract server from channel_key
+            server = channel_key.split(':', 1)[0]
+            
+            # Open the PM window
+            self.create_private_window(username, server)
+            
+        except Exception as e:
+            self.add_status_message(f"Error opening PM from user list: {e}", 'error')
+            import traceback
+            traceback.print_exc()
 
     def create_status_window(self):
         """Create the status window as a tab in the notebook"""
@@ -2212,36 +2270,14 @@ class IRCClient:
     def disconnect_from_server(self, server):
         """Safely disconnect from a server"""
         try:
-            # Set disconnecting flag to signal threads to exit
             self.disconnecting = True
             
             with self.lock:
                 if server in self.connections:
                     self.add_status_message(f"Disconnecting from {server}...")
                     
-                    # Close all channel windows for this server
-                    channels_to_close = [
-                        key for key in list(self.channel_windows.keys())
-                        if key.startswith(f"{server}:")
-                    ]
-                    for channel_key in channels_to_close:
-                        if channel_key in self.channel_windows:
-                            try:
-                                self.channel_windows[channel_key].on_closing()
-                            except Exception as e:
-                                print(f"Error closing channel window {channel_key}: {e}")
-                    
-                    # Close all PM windows for this server
-                    pms_to_close = [
-                        key for key in list(self.private_windows.keys())
-                        if key.startswith(f"{server}:")
-                    ]
-                    for pm_key in pms_to_close:
-                        if pm_key in self.private_windows:
-                            try:
-                                self.private_windows[pm_key].on_closing()
-                            except Exception as e:
-                                print(f"Error closing PM window {pm_key}: {e}")
+                    # Close tabs using the new methods before removing server node
+                    self.remove_server_node(server)
                     
                     # Try to send a QUIT message before disconnecting
                     try:
@@ -2263,20 +2299,15 @@ class IRCClient:
                     # Remove from connections dictionary
                     del self.connections[server]
                     
-                    # Wait for receive thread to terminate - only if called from a different thread
+                    # Wait for receive thread to terminate
                     if server in self.receive_threads:
                         current_thread = threading.current_thread()
                         if current_thread != self.receive_threads[server]:
                             try:
-                                self.receive_threads[server].join(2.0)  # Increased timeout to 2 seconds
+                                self.receive_threads[server].join(2.0)
                             except RuntimeError:
-                                pass  # Ignore "cannot join current thread" error
-                            
-                        # Always remove the thread reference whether we waited or not
+                                pass 
                         del self.receive_threads[server]
-                    
-                    # Remove server node and all its children from the tree view
-                    self.remove_server_node(server)
                     
                     # Update status
                     self.add_status_message(f"Disconnected from {server}")
@@ -2284,7 +2315,6 @@ class IRCClient:
         except Exception as e:
             self.add_status_message(f"Error during disconnect from {server}: {e}", 'error')
         finally:
-            # Reset disconnecting flag
             self.disconnecting = False
 
     def toggle_window(self, event):
@@ -2826,149 +2856,6 @@ class IRCClient:
                 
         except Exception as e:
             self.add_status_message(f"Error processing message: {e}")
-
-    def create_channel_window(self, channel, server):
-        """Create a new channel window as a tab in the notebook"""
-        channel_key = f"{server}:{channel}"
-        if channel_key not in self.channel_windows:
-            # Create a new tab frame in the notebook
-            channel_tab = ttk.Frame(self.notebook)
-            
-            # Create a paned window to separate chat and users
-            channel_paned = ttk.PanedWindow(channel_tab, orient=tk.HORIZONTAL)
-            channel_paned.pack(fill=tk.BOTH, expand=True)
-            
-            # Set up the channel tab with a vertical layout
-            channel_display_frame = ttk.Frame(channel_paned)
-            channel_paned.add(channel_display_frame, weight=3)  # Give chat area more space
-            
-            # Create topic label
-            topic_frame = ttk.Frame(channel_display_frame)
-            topic_frame.pack(fill=tk.X)
-            topic_label = ttk.Label(topic_frame, text="No topic set", wraplength=600)
-            topic_label.pack(fill=tk.X, padx=5, pady=5)
-            
-            # Create chat display with scrolled text
-            chat_display = scrolledtext.ScrolledText(channel_display_frame, wrap=tk.WORD)
-            chat_display.pack(fill=tk.BOTH, expand=True)
-            
-            # Configure text tags for different message types
-            chat_display.tag_configure('timestamp', foreground='gray')
-            chat_display.tag_configure('join', foreground='green')
-            chat_display.tag_configure('part', foreground='red')
-            chat_display.tag_configure('quit', foreground='red')
-            chat_display.tag_configure('nick', foreground='blue')
-            chat_display.tag_configure('username', foreground='gray')
-            chat_display.tag_configure('my_username', foreground='magenta')
-            chat_display.tag_configure('message', foreground='white')
-            chat_display.tag_configure('action', foreground='purple')
-            
-            # Create input frame
-            input_frame = ttk.Frame(channel_display_frame)
-            input_frame.pack(fill=tk.X, pady=5)
-            
-            # Create message input
-            message_input = ttk.Entry(input_frame)
-            message_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-            setattr(self, f'input_{channel_key.replace(":", "_")}', message_input)
-            
-            # Create send button
-            send_button = ttk.Button(
-                input_frame, 
-                text="Send", 
-                command=lambda: self.send_channel_message(channel, message_input.get(), server)
-            )
-            send_button.pack(side=tk.RIGHT, padx=5)
-            
-            # Bind Enter key to send message
-            message_input.bind('<Return>', lambda event: self.send_channel_message(channel, message_input.get(), server))
-            
-            # Create users panel on the right
-            users_frame = ttk.Frame(channel_paned)
-            channel_paned.add(users_frame, weight=1)  # Take up less space
-            
-            # Create users label
-            users_label = ttk.Label(users_frame, text="Users")
-            users_label.pack(pady=5)
-            
-            # Create users listbox with scrollbars
-            users_list_frame = ttk.Frame(users_frame)
-            users_list_frame.pack(fill=tk.BOTH, expand=True)
-            
-            # Create scrollbars
-            users_scrollbar = ttk.Scrollbar(users_list_frame)
-            users_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            
-            users_horizontal_scrollbar = ttk.Scrollbar(users_list_frame, orient=tk.HORIZONTAL)
-            users_horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-            
-            # Create listbox
-            users_listbox = tk.Listbox(
-                users_list_frame,
-                yscrollcommand=users_scrollbar.set,
-                xscrollcommand=users_horizontal_scrollbar.set
-            )
-            users_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            
-            # Configure scrollbars
-            users_scrollbar.config(command=users_listbox.yview)
-            users_horizontal_scrollbar.config(command=users_listbox.xview)
-            
-            # Create right-click menu for users
-            user_menu = tk.Menu(users_listbox, tearoff=0)
-            user_menu.add_command(label="Private Message", command=lambda: self.open_pm_from_userlist(channel_key))
-            user_menu.add_command(label="Whois", command=lambda: self.whois_from_userlist(channel_key))
-            user_menu.add_separator()
-            user_menu.add_command(label="Op", command=lambda: self.op_from_userlist(channel_key))
-            user_menu.add_command(label="Deop", command=lambda: self.deop_from_userlist(channel_key))
-            user_menu.add_command(label="Voice", command=lambda: self.voice_from_userlist(channel_key))
-            user_menu.add_command(label="Devoice", command=lambda: self.devoice_from_userlist(channel_key))
-            user_menu.add_separator()
-            user_menu.add_command(label="Kick", command=lambda: self.kick_from_userlist(channel_key))
-            user_menu.add_command(label="Ban", command=lambda: self.ban_from_userlist(channel_key))
-            
-            # Bind user list context menu
-            users_listbox.bind("<Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))
-            
-            # Add the tab to the notebook
-            self.notebook.add(channel_tab, text=channel)
-            self.tabs[channel_key] = channel_tab
-            
-            # Create a ChannelInfo object to store channel data
-            channel_info = {
-                'tab': channel_tab,
-                'chat_display': chat_display,
-                'message_input': message_input,
-                'topic_label': topic_label,
-                'users': set(),
-                'users_listbox': users_listbox,
-                'user_menu': user_menu,
-                'batch_updating': False,
-                'names_buffer': set()
-            }
-            
-            # Store in channel_windows dictionary
-            self.channel_windows[channel_key] = channel_info
-            
-            # Add to tree view
-            self.add_channel_node(channel, server)
-            
-            # Request NAMES list for the channel
-            self.send_command(f"NAMES {channel}", server)
-            
-            # Add join message
-            self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
-            
-            # Select the new tab
-            self.select_tab(channel_key)
-            
-            # Update status
-            self.add_status_message(f"Joined channel: {channel} on {server}")
-        else:
-            # If already exists, just select the tab
-            self.select_tab(channel_key)
-
-
 
     def connect_to_server(self, server, port, nickname):
         """Connect to an IRC server and set up the connection"""
@@ -3911,6 +3798,46 @@ class IRCClient:
         """Hide the tabs in the notebook"""
         style = ttk.Style()
         style.layout('TNotebook.Tab', [])  # Empty layout removes the tabs
+
+    def close_pm_tab(self, username, server):
+        """Close a PM tab and clean up resources"""
+        try:
+            pm_key = f"{server}:{username}"
+            self.add_status_message(f"Closing PM with: {username}")
+
+            # Remove PM node from tree
+            server_data = self.server_nodes.get(server)
+            if server_data and username in server_data.get('private_msgs', {}):
+                try:
+                    pm_node = server_data['private_msgs'][username]
+                    self.network_tree.delete(pm_node)
+                except Exception as e:
+                    print(f"Error removing PM node: {e}")
+                del server_data['private_msgs'][username]
+
+            # Close the tab/window
+            if pm_key in self.private_windows:
+                pm_info = self.private_windows[pm_key]
+                
+                # Remove tab from notebook if it exists
+                if 'tab' in pm_info and pm_info['tab'] in self.notebook.tabs():
+                    self.notebook.forget(pm_info['tab'])
+                
+                # Delete PM info from dictionary
+                del self.private_windows[pm_key]
+                
+                # Remove from tabs dictionary
+                if f"pm:{username}" in self.tabs:
+                    del self.tabs[f"pm:{username}"]
+                
+                # Select status tab if no other tabs remain
+                if len(self.notebook.tabs()) == 1:
+                    self.select_tab('status')
+            else:
+                print(f"PM {pm_key} not found in private_windows")
+        except Exception as e:
+            print(f"Error closing PM tab: {e}")
+            traceback.print_exc()
 
 def main():
     # Configuration info - but don't connect automatically
