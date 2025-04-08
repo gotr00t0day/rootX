@@ -738,9 +738,7 @@ class ChannelWindow:
     def _do_update_users_list(self):
         """Performs the actual update of the users list in the GUI thread"""
         try:
-            self.users_listbox.delete(0, tk.END)
-            
-            # Filter and sort users in a list comprehension for better performance
+            # Filter and sort users first to get the final count
             valid_users = sorted(
                 [user for user in self.users 
                  if (user.startswith(('@', '+')) or user[0].isalnum()) and 
@@ -748,8 +746,11 @@ class ChannelWindow:
                 key=lambda x: (not x.startswith('@'), not x.startswith('+'), x.lower())
             )
 
-            # Update Users Count
+            # Update Users Count Label *before* modifying the listbox
             self.users_label.config(text=f"Users: {len(valid_users)}")
+
+            # Now clear and repopulate the listbox
+            self.users_listbox.delete(0, tk.END)
             
             # Batch insert users
             for i, user in enumerate(valid_users):
@@ -969,7 +970,7 @@ class ChannelWindow:
             
             # Get users set if not provided
             if users is None:
-                users = sorted(list(channel_info['users']), 
+                users = sorted(list(channel_info.get('users', set())), # Use .get for safety 
                              key=lambda u: (
                                  0 if u.startswith('@') else (1 if u.startswith('+') else 2),
                                  u.lstrip('@+').lower()
@@ -994,76 +995,66 @@ class ChannelWindow:
             
             # Define function to process one batch
             def process_batch():
+                # Check if channel info still exists (window might close during batch)
+                if channel_key not in self.channel_windows:
+                    return 
+                current_channel_info = self.channel_windows[channel_key]
+
                 if batch_state['current_index'] >= len(batch_state['users']):
                     # Done - update the count with the ACTUAL number of users in the listbox
-                    if 'users_label' in channel_info:
-                        actual_count = users_listbox.size()
-                        channel_info['users_label'].config(text=f"Users: {actual_count}")
+                    if 'users_label' in current_channel_info:
+                        try:
+                            # Make sure listbox still exists before getting size
+                            if users_listbox.winfo_exists():
+                                actual_count = users_listbox.size()
+                                current_channel_info['users_label'].config(text=f"Users: {actual_count}")
+                        except tk.TclError:
+                             # Handle potential error if widget is destroyed during update
+                             pass
                     return
                 
                 # Process next batch
                 start_idx = batch_state['current_index']
                 end_idx = min(start_idx + batch_state['batch_size'], len(batch_state['users']))
                 
-                for i in range(start_idx, end_idx):
-                    user = batch_state['users'][i]
-                    users_listbox.insert(tk.END, user)
-                    idx = users_listbox.size() - 1
-                    batch_state['total_inserted'] += 1
+                # Check if listbox still exists before inserting
+                if not users_listbox.winfo_exists():
+                    return 
+
+                try:
+                    for i in range(start_idx, end_idx):
+                        user = batch_state['users'][i]
+                        users_listbox.insert(tk.END, user)
+                        idx = users_listbox.size() - 1
+                        batch_state['total_inserted'] += 1
+                        
+                        # Set color based on user prefix
+                        if user.startswith('@'):
+                            users_listbox.itemconfig(idx, foreground='yellow')  # Ops
+                        elif user.startswith('+'):
+                            users_listbox.itemconfig(idx, foreground='cyan')    # Voice
+                        else:
+                            users_listbox.itemconfig(idx, foreground='white')   # Regular users
                     
-                    # Set color based on user prefix
-                    if user.startswith('@'):
-                        users_listbox.itemconfig(idx, foreground='yellow')  # Ops
-                    elif user.startswith('+'):
-                        users_listbox.itemconfig(idx, foreground='cyan')    # Voice
-                    else:
-                        users_listbox.itemconfig(idx, foreground='white')   # Regular users
-                
-                # Update the label with current count while processing
-                if 'users_label' in channel_info:
-                    channel_info['users_label'].config(text=f"Users: {batch_state['total_inserted']}")
-                
-                # Update index for next batch
-                batch_state['current_index'] = end_idx
-                
-                # Schedule next batch - use short delay to allow UI to breathe
-                self.window.after(10, process_batch)
-            
+                    # Remove the label update from inside the loop
+                    # if 'users_label' in current_channel_info:
+                    #     current_channel_info['users_label'].config(text=f"Users: {batch_state['total_inserted']}")
+                    
+                    # Update index for next batch
+                    batch_state['current_index'] = end_idx
+                    
+                    # Schedule next batch - use short delay to allow UI to breathe
+                    self.window.after(10, process_batch)
+                except tk.TclError:
+                    # Handle error if listbox is destroyed during insertion
+                    print(f"Warning: Listbox for {channel_key} destroyed during batched update.")
+                    return
+
             # Start batch processing
             self.window.after(0, process_batch)
             
         except Exception as e:
             print(f"Error in batched user update: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def show_user_context_menu(self, event, channel_key):
-        """Display the user context menu at the click position."""
-        try:
-            # Get the specific channel's info
-            if channel_key not in self.channel_windows:
-                print(f"Error: Channel info not found for {channel_key}")
-                return
-            channel_info = self.channel_windows[channel_key]
-            users_listbox = channel_info.get('users_listbox')
-            user_menu = channel_info.get('user_menu') # Get the correct menu
-            
-            if not users_listbox or not user_menu:
-                print(f"Error: Listbox or menu not found for {channel_key}")
-                return
-
-            # Get clicked item index
-            clicked_index = users_listbox.nearest(event.y)
-            if clicked_index >= 0:
-                # Select the clicked item
-                users_listbox.selection_clear(0, tk.END)
-                users_listbox.selection_set(clicked_index)
-                users_listbox.activate(clicked_index) # Highlight the selected item
-                
-                # Show menu at mouse position relative to screen
-                user_menu.tk_popup(event.x_root, event.y_root)
-        except Exception as e:
-            print(f"Error showing user context menu: {e}")
             import traceback
             traceback.print_exc()
 
@@ -1865,6 +1856,48 @@ class IRCClient:
             
             # Clear the input field
             self.private_windows[pm_key]['message_input'].delete(0, tk.END)
+        
+    def show_user_context_menu(self, event, channel_key):
+        """Display the user context menu at the click position."""
+        try:
+            # Get the specific channel's info
+            if channel_key not in self.channel_windows:
+                print(f"Error: Channel info not found for {channel_key}")
+                return
+            channel_info = self.channel_windows[channel_key]
+            users_listbox = channel_info.get('users_listbox')
+            user_menu = channel_info.get('user_menu') # Get the correct menu
+            
+            if not users_listbox or not user_menu:
+                print(f"Error: Listbox or menu not found for {channel_key}")
+                return
+
+            # Check if listbox exists
+            if not users_listbox.winfo_exists():
+                print(f"Error: Listbox for {channel_key} does not exist.")
+                return
+
+            # Get clicked item index
+            clicked_index = users_listbox.nearest(event.y)
+            
+            # Check if the click was actually on an item
+            if clicked_index < 0 or clicked_index >= users_listbox.size():
+                 # Click was outside the list items, do nothing
+                 return
+
+            # Check if index is valid (important after nearest)
+            if clicked_index >= 0:
+                # Select the clicked item
+                users_listbox.selection_clear(0, tk.END)
+                users_listbox.selection_set(clicked_index)
+                users_listbox.activate(clicked_index) # Highlight the selected item
+                
+                # Show menu at mouse position relative to screen
+                user_menu.tk_popup(event.x_root, event.y_root)
+        except Exception as e:
+            print(f"Error showing user context menu: {e}")
+            import traceback
+            traceback.print_exc()
 
     def create_channel_window(self, channel, server):
         """Create a new channel window"""
@@ -3697,7 +3730,7 @@ class IRCClient:
             
             # Get users set if not provided
             if users is None:
-                users = sorted(list(channel_info['users']), 
+                users = sorted(list(channel_info.get('users', set())), # Use .get for safety 
                              key=lambda u: (
                                  0 if u.startswith('@') else (1 if u.startswith('+') else 2),
                                  u.lstrip('@+').lower()
@@ -3722,41 +3755,61 @@ class IRCClient:
             
             # Define function to process one batch
             def process_batch():
+                # Check if channel info still exists (window might close during batch)
+                if channel_key not in self.channel_windows:
+                    return 
+                current_channel_info = self.channel_windows[channel_key]
+
                 if batch_state['current_index'] >= len(batch_state['users']):
                     # Done - update the count with the ACTUAL number of users in the listbox
-                    if 'users_label' in channel_info:
-                        actual_count = users_listbox.size()
-                        channel_info['users_label'].config(text=f"Users: {actual_count}")
+                    if 'users_label' in current_channel_info:
+                        try:
+                            # Make sure listbox still exists before getting size
+                            if users_listbox.winfo_exists():
+                                actual_count = users_listbox.size()
+                                current_channel_info['users_label'].config(text=f"Users: {actual_count}")
+                        except tk.TclError:
+                             # Handle potential error if widget is destroyed during update
+                             pass
                     return
                 
                 # Process next batch
                 start_idx = batch_state['current_index']
                 end_idx = min(start_idx + batch_state['batch_size'], len(batch_state['users']))
                 
-                for i in range(start_idx, end_idx):
-                    user = batch_state['users'][i]
-                    users_listbox.insert(tk.END, user)
-                    idx = users_listbox.size() - 1
-                    batch_state['total_inserted'] += 1
+                # Check if listbox still exists before inserting
+                if not users_listbox.winfo_exists():
+                    return 
+
+                try:
+                    for i in range(start_idx, end_idx):
+                        user = batch_state['users'][i]
+                        users_listbox.insert(tk.END, user)
+                        idx = users_listbox.size() - 1
+                        batch_state['total_inserted'] += 1
+                        
+                        # Set color based on user prefix
+                        if user.startswith('@'):
+                            users_listbox.itemconfig(idx, foreground='yellow')  # Ops
+                        elif user.startswith('+'):
+                            users_listbox.itemconfig(idx, foreground='cyan')    # Voice
+                        else:
+                            users_listbox.itemconfig(idx, foreground='white')   # Regular users
                     
-                    # Set color based on user prefix
-                    if user.startswith('@'):
-                        users_listbox.itemconfig(idx, foreground='yellow')  # Ops
-                    elif user.startswith('+'):
-                        users_listbox.itemconfig(idx, foreground='cyan')    # Voice
-                    else:
-                        users_listbox.itemconfig(idx, foreground='white')   # Regular users
-                
-                # Update the label with current count while processing
-                if 'users_label' in channel_info:
-                    channel_info['users_label'].config(text=f"Users: {batch_state['total_inserted']}")
-                
-                # Update index for next batch
-                batch_state['current_index'] = end_idx
-                
-                # Schedule next batch - use short delay to allow UI to breathe
-                self.window.after(10, process_batch)
-            
+                    # Remove the label update from inside the loop
+                    # if 'users_label' in current_channel_info:
+                    #     current_channel_info['users_label'].config(text=f"Users: {batch_state['total_inserted']}")
+                    
+                    # Update index for next batch
+                    batch_state['current_index'] = end_idx
+                    
+                    # Schedule next batch - use short delay to allow UI to breathe
+                    self.window.after(10, process_batch)
+                except tk.TclError:
+                    # Handle error if listbox is destroyed during insertion
+                    print(f"Warning: Listbox for {channel_key} destroyed during batched update.")
+                    return
+
             # Start batch processing
             self.window.after(0, process_batch)
             
@@ -3838,6 +3891,216 @@ class IRCClient:
         except Exception as e:
             print(f"Error closing PM tab: {e}")
             traceback.print_exc()
+
+    def get_channel_info(self, channel_key):
+        """Retrieve channel info dictionary safely."""
+        return self.channel_windows.get(channel_key)
+
+    def get_private_window_info(self, pm_key):
+        """Retrieve private window info dictionary safely."""
+        return self.private_windows.get(pm_key)
+
+    # --- User List Context Menu Helper Methods ---
+
+    def _get_selected_user_from_list(self, channel_key):
+        """Helper to get the selected username and listbox from a channel."""
+        if channel_key not in self.channel_windows:
+            self.add_status_message(f"Error: Channel key {channel_key} not found.", 'error')
+            return None, None, None
+
+        channel_info = self.channel_windows[channel_key]
+        users_listbox = channel_info.get('users_listbox')
+
+        if not users_listbox or not users_listbox.winfo_exists():
+            self.add_status_message("Error: User listbox not found or invalid for channel.", 'error')
+            return None, None, None
+
+        selected_indices = users_listbox.curselection()
+        if not selected_indices:
+            return None, None, users_listbox # Return listbox even if no selection
+
+        selected_user_raw = users_listbox.get(selected_indices[0])
+        username = selected_user_raw.lstrip('@+') # Remove status prefix
+        return username, selected_user_raw, users_listbox
+
+    def whois_from_userlist(self, channel_key):
+        """Perform WHOIS on the selected user in a channel list."""
+        try:
+            username, _, _ = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return # Error or no selection handled in helper
+
+            server = channel_key.split(':', 1)[0]
+            self.send_command(f"WHOIS {username}", server)
+            self.add_channel_message(channel_key, f"* Sent WHOIS request for {username}", 'status')
+        except Exception as e:
+            self.add_status_message(f"Error in whois_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    def op_from_userlist(self, channel_key):
+        """Give OP status to selected user from the channel's user list."""
+        try:
+            username, selected_user_raw, _ = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return
+
+            server, channel = channel_key.split(':', 1)
+
+            if selected_user_raw.startswith('@'):
+                 self.add_channel_message(channel_key, f"{username} is already an operator.", 'error')
+                 return
+
+            self.send_command(f"MODE {channel} +o {username}", server)
+            self.add_channel_message(channel_key, f"* Attempting to give op status to {username}", 'status')
+        except Exception as e:
+            self.add_status_message(f"Error in op_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    def deop_from_userlist(self, channel_key):
+        """Remove OP status from selected user."""
+        try:
+            username, selected_user_raw, _ = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return
+
+            server, channel = channel_key.split(':', 1)
+
+            if not selected_user_raw.startswith('@'):
+                 self.add_channel_message(channel_key, f"{username} is not an operator.", 'error')
+                 return
+
+            self.send_command(f"MODE {channel} -o {username}", server)
+            self.add_channel_message(channel_key, f"* Attempting to remove op status from {username}", 'status')
+        except Exception as e:
+            self.add_status_message(f"Error in deop_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    def voice_from_userlist(self, channel_key):
+        """Give voice status to selected user."""
+        try:
+            username, selected_user_raw, _ = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return
+
+            server, channel = channel_key.split(':', 1)
+
+            if selected_user_raw.startswith(('+', '@')): # Ops also have voice
+                 self.add_channel_message(channel_key, f"{username} already has voice.", 'error')
+                 return
+
+            self.send_command(f"MODE {channel} +v {username}", server)
+            self.add_channel_message(channel_key, f"* Attempting to give voice status to {username}", 'status')
+        except Exception as e:
+            self.add_status_message(f"Error in voice_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    def devoice_from_userlist(self, channel_key):
+        """Remove voice status from selected user."""
+        try:
+            username, selected_user_raw, _ = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return
+
+            server, channel = channel_key.split(':', 1)
+
+            if not selected_user_raw.startswith('+'):
+                 self.add_channel_message(channel_key, f"{username} does not have voice.", 'error')
+                 return
+
+            self.send_command(f"MODE {channel} -v {username}", server)
+            self.add_channel_message(channel_key, f"* Attempting to remove voice status from {username}", 'status')
+        except Exception as e:
+            self.add_status_message(f"Error in devoice_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    def kick_from_userlist(self, channel_key):
+        """Kick the selected user from the channel."""
+        try:
+            username, selected_user_raw, users_listbox = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return
+
+            server, channel = channel_key.split(':', 1)
+            current_nick = self.connections[server]['nickname']
+
+            if username == current_nick:
+                 self.add_channel_message(channel_key, f"You cannot kick yourself.", 'error')
+                 return
+
+            # Create dialog for kick reason
+            reason_dialog = tk.Toplevel(self.window) # Use main window as parent
+            reason_dialog.title("Kick Reason")
+            reason_dialog.geometry("300x100")
+            reason_dialog.transient(self.window) # Make it modal relative to main window
+            reason_dialog.grab_set()
+
+            ttk.Label(reason_dialog, text="Reason:").pack(pady=5)
+            reason_entry = ttk.Entry(reason_dialog, width=40)
+            reason_entry.pack(pady=5)
+            reason_entry.focus()
+
+            def do_kick():
+                reason = reason_entry.get() or "Kicked"
+                self.send_command(f"KICK {channel} {username} :{reason}", server)
+                self.add_channel_message(channel_key, f"* Attempting to kick {username} ({reason})", 'kick')
+                reason_dialog.destroy()
+
+            ttk.Button(reason_dialog, text="Kick", command=do_kick).pack(pady=5)
+            reason_entry.bind('<Return>', lambda e: do_kick())
+
+        except Exception as e:
+            self.add_status_message(f"Error in kick_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    def ban_from_userlist(self, channel_key):
+        """Ban the selected user from the channel."""
+        try:
+            username, selected_user_raw, users_listbox = self._get_selected_user_from_list(channel_key)
+            if not username:
+                return
+
+            server, channel = channel_key.split(':', 1)
+            current_nick = self.connections[server]['nickname']
+
+            if username == current_nick:
+                 self.add_channel_message(channel_key, f"You cannot ban yourself.", 'error')
+                 return
+
+            # Create dialog for ban options (Simplified: just ban nick!*@*)
+            ban_dialog = tk.Toplevel(self.window)
+            ban_dialog.title(f"Ban {username} Options")
+            ban_dialog.geometry("300x150")
+            ban_dialog.transient(self.window)
+            ban_dialog.grab_set()
+
+            ttk.Label(ban_dialog, text=f"Ban mask: {username}!*@*").pack(pady=5)
+
+            kick_after = tk.BooleanVar(value=True)
+            ttk.Checkbutton(ban_dialog, text="Kick after ban", variable=kick_after).pack(pady=5)
+
+            ttk.Label(ban_dialog, text="Reason:").pack(pady=5)
+            reason_entry = ttk.Entry(ban_dialog, width=40)
+            reason_entry.pack(pady=5)
+
+            def do_ban():
+                reason = reason_entry.get() or "Banned"
+                ban_mask = f"{username}!*@*"
+                self.send_command(f"MODE {channel} +b {ban_mask}", server)
+                self.add_channel_message(channel_key, f"* Set ban on {ban_mask}", 'ban')
+
+                if kick_after.get():
+                    self.send_command(f"KICK {channel} {username} :{reason}", server)
+                    self.add_channel_message(channel_key, f"* Attempting to kick {username} ({reason})", 'kick')
+
+                ban_dialog.destroy()
+
+            ttk.Button(ban_dialog, text="Ban", command=do_ban).pack(pady=10)
+
+        except Exception as e:
+            self.add_status_message(f"Error in ban_from_userlist: {e}", 'error')
+            traceback.print_exc()
+
+    # --- End User List Helpers ---
 
 def main():
     # Configuration info - but don't connect automatically
