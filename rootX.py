@@ -1175,7 +1175,7 @@ class IRCClient:
 
     def __init__(self, master, server=None, port=6667, nickname="PythonUser"):
         # Client version
-        self.version = "rootX IRC Client v1.0"
+        self.version = "rootX IRC Client v2"
         
         self.master = master
         self.connections = {}  # Dictionary to store connections by server name

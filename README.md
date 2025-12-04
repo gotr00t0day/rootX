@@ -1,105 +1,122 @@
-# rootX
-rootX is a modern, feature-rich IRC client built with Python and Tkinter, offering a clean and intuitive graphical interface while maintaining powerful IRC functionality.
+# 🚀 RootX IRC Client v2
 
-## Features
+A powerful, scriptable IRC client with modern features and mIRC-style scripting.
 
-### Multi-Server Support
-- Connect to multiple IRC servers simultaneously
-- Server-specific channel management
-- Individual server connection settings
-- Easy server switching
+## ✨ Features
 
-### Channel Management
-- Join multiple channels across different servers
-- User list with operator/voice status indicators
-- Channel operator controls (kick, ban, op/deop, voice/devoice)
-- Channel modes and topic management
-- Batch processing for efficient user list updates
+- **Multi-Server Support** - Connect to multiple IRC servers simultaneously
+- **mIRC-Style Scripting** - Full-featured scripting engine for automation
+- **User Levels System** - Built-in permission/access control
+- **Private Messages** - Tabbed PM interface
+- **Channel Management** - Easy channel operations
+- **Cross-Platform** - Works on macOS, Linux, Windows
 
-### Private Messaging
-- Dedicated windows for private conversations
-- CTCP action support (/me commands)
-- User-to-user messaging across servers
+## 📚 Documentation
 
-### Advanced IRC Features
-- Full IRC command support
-- WHOIS functionality
-- Channel listing with search capability
-- NickServ and ChanServ services support
-- Away status management
-- Nickname registration and authentication
+- **[Scripting Tutorial](SCRIPTING_TUTORIAL.md)** - Complete beginner's guide to scripting
+- **[Quick Reference](SCRIPTING_QUICKREF.md)** - One-page scripting cheat sheet
+- **[User Levels Guide](USER_LEVELS_GUIDE.md)** - Access control system documentation
 
-### User Interface
-- Modern tabbed interface
-- Network tree for easy navigation
-- Customizable themes
-- Status window for server messages
-- Intuitive context menus
-- User-friendly dialog windows
+## 🚀 Quick Start
 
-### Theme System
-- Multiple built-in themes (Default, Dark, Light, Matrix)
-- Customizable colors for different message types
-- Real-time theme switching
-- Persistent theme settings
+### Installation
 
-### Additional Features
-- Automatic reconnection
-- Error handling and recovery
-- UTF-8 encoding support
-- Logging capabilities
-- Action message support
-- User mode tracking
+```bash
+pip install -r requirements.txt
+```
 
-## Installation
+### Running
 
-### Clone the repository:
-
-git clone https://github.com/gotr00t0day/rootX.git
-
-### Install dependencies
-
-pip3 install -r requirements.txt
-
-# Usage
-
+```bash
 python3 rootX.py
+```
 
-### User Menu
+### Connecting to IRC
 
-Left click on a user in the channel window to access the user menu.
+```
+/server irc.libera.chat 6667 YourNickname
+/join #channel
+```
 
-![User Menu](user_menu.png)
+## 📝 Scripting
 
-### Open and Hide Channel Windows
+### Your First Script
 
-Left click on a channel in the network tree to open or hide the channel window.
+Create `scripts/hello.rsx`:
+
+```mirc
+on TEXT:!hello:#:{
+    msg $chan Hello, $nick!
+}
+```
+
+Load it:
+```
+/script reload
+```
+
+### Learn More
+
+- Check out `scripts/sample.rsx` for examples
+- Read the [Scripting Tutorial](SCRIPTING_TUTORIAL.md) for complete guide
+- See [Quick Reference](SCRIPTING_QUICKREF.md) for syntax
+
+## 🎯 Example Scripts
+
+### Auto-Welcome
+```mirc
+on JOIN:*:#:{
+    msg $chan Welcome to $chan, $nick!
+}
+```
+
+### Fun Commands
+```mirc
+on TEXT:!dice:#:{
+    msg $chan $nick rolled: $rand(6)
+}
+```
+
+### User Management
+```mirc
+on TEXT:!level*:#:{
+    if ($level >= 500) {
+        msg $chan You're an admin!
+    }
+}
+```
+
+## 🔧 Script Commands
+
+| Command | Description |
+|---------|-------------|
+| `/script reload` | Reload all scripts |
+| `/script unload` | Unload all scripts |
+| `/script list` | Show loaded scripts |
+| `/script load <file>` | Load specific script |
+
+## 🎨 Customization
+
+Scripts are stored in `/scripts/` folder:
+- `sample.rsx` - Basic examples
+- `userlevels.rsx` - Advanced user management
+- `autoconnect.rsx` - Server automation
+
+## 💡 Tips
+
+1. Use `/script reload` after editing scripts
+2. Check console output for errors
+3. Use `echo` in scripts for debugging
+4. Start with simple scripts and build up
+
+## 📖 Full Documentation
+
+- **Scripting Tutorial**: Complete guide with exercises
+- **Quick Reference**: One-page cheat sheet
+- **User Levels**: Permission system docs
+- **Examples**: Sample scripts in `/scripts/`
+
 ---
 
-### Basic Commands
-- `/server <server> [port] [nickname]` - Connect to a server
-- `/join #channel` - Join a channel
-- `/msg <user> <message>` - Send private message
-- `/me <action>` - Send action message
-- `/quit [message]` - Disconnect from server
-
-## Dependencies
-- Python 3.x
-- Tkinter
-- Colorama
-
-## Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-- Thanks to the Python IRC community
-- Inspired by classic IRC clients while embracing modern design principles
-
----
-Built with ❤️ by c0d3ninja
-
-
+**Made with ❤️ for the IRC community**
 
