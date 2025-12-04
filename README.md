@@ -111,10 +111,10 @@ Scripts are stored in `/scripts/` folder:
 
 ## 📖 Full Documentation
 
-- **Scripting Tutorial**: Complete guide with exercises
-- **Quick Reference**: One-page cheat sheet
-- **User Levels**: Permission system docs
-- **Examples**: Sample scripts in `/scripts/`
+- **[Essential Features](ESSENTIAL_FEATURES.md)**: Complete guide to all mIRC features ✨
+- **[Scripting Tutorial](tutorials/SCRIPTING_TUTORIAL.md)**: Complete guide with exercises
+- **[Quick Reference](tutorials/SCRIPTING_QUICKREF.md)**: One-page cheat sheet
+- **Examples**: `scripts/features_demo.rsx` - Interactive demo of all features
 
 ---
 

@@ -66,11 +66,43 @@ set %%global = value    ; Permanent
 - `$date` - YYYY-MM-DD
 - `$version` - Client version
 
-### Functions
-- `$rand(N)` - Random 0 to N-1
+### String Functions
 - `$len(text)` - Text length
 - `$upper(text)` - UPPERCASE
 - `$lower(text)` - lowercase
+- `$left(text,N)` - First N chars
+- `$right(text,N)` - Last N chars
+- `$mid(text,S,L)` - Substring
+- `$pos(text,search)` - Find position
+- `$replace(text,old,new)` - Replace text
+- `$remove(text,sub)` - Remove substring
+- `$str(text,N)` - Repeat N times
+- `$chr(N)` - ASCII to char
+- `$asc(char)` - Char to ASCII
+- `$strip(text)` - Remove IRC codes
+
+### Math Functions
+- `$rand(N)` - Random 0 to N-1
+- `$calc(expr)` - Calculate (e.g., `$calc(5+3*2)`)
+- `$round(N,decimals)` - Round number
+- `$abs(N)` - Absolute value
+- `$sqrt(N)` - Square root
+- `$floor(N)` - Round down
+- `$ceil(N)` - Round up
+
+### Tokenization (delim: comma=44, space=32, pipe=124)
+- `$gettok(text,N,delim)` - Get Nth token
+- `$numtok(text,delim)` - Count tokens
+- `$findtok(text,search,start,delim)` - Find token
+- `$addtok(text,token,delim)` - Add token
+- `$remtok(text,token,delim)` - Remove token
+- `$reptok(text,old,new,delim)` - Replace token
+
+### File I/O
+- `$read(file)` - Read random line
+- `$read(file,N)` - Read line N
+- `$exists(file)` - Check if file exists
+- `$lines(file)` - Count lines in file
 
 ### User Levels
 - `$level` - Current user's level
@@ -120,6 +152,11 @@ mode <target> <modes>           ; Set modes
 setlevel <nick> <level>         ; Set user level
 remlevel <nick>                 ; Remove level
 getlevel <nick>                 ; Show level
+
+; File I/O
+write <file> <text>             ; Append to file
+read <file> [line]              ; Read from file
+remove <file>                   ; Delete file
 
 ; Timers
 timer <name> <ms> <reps> {...}  ; Create timer

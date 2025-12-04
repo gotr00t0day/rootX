@@ -37,43 +37,91 @@ VARIABLES:
     Global: %%var = value (persists across script reloads)
     
 IDENTIFIERS (read-only):
-    $nick    - Nick of the person who triggered the event
-    $chan    - Current channel
-    $me      - Your nickname
-    $server  - Current server
-    $target  - Target of the message (channel or nick)
-    $1-$N    - Word tokens from the message ($1 is first word, etc.)
-    $1-      - All words from $1 onwards
-    $text    - Full message text
-    $time    - Current time (HH:MM:SS)
-    $date    - Current date (YYYY-MM-DD)
-    $version - Client version
-    $rand(N) - Random number 0 to N-1
-    $len(text) - Length of text
-    $upper(text) - Uppercase
-    $lower(text) - Lowercase
-    $level(nick) - Get user's level (0 if not set)
-    $islevel(nick,level) - Check if user has level >= specified (returns True/False)
+    Basic:
+        $nick    - Nick of the person who triggered the event
+        $chan    - Current channel
+        $me      - Your nickname
+        $server  - Current server
+        $target  - Target of the message (channel or nick)
+        $1-$N    - Word tokens from the message ($1 is first word, etc.)
+        $1-      - All words from $1 onwards
+        $text    - Full message text
+        $time    - Current time (HH:MM:SS)
+        $date    - Current date (YYYY-MM-DD)
+        $version - Client version
+    
+    String Functions:
+        $len(text) - Length of text
+        $upper(text) - Uppercase
+        $lower(text) - Lowercase
+        $left(text,N) - First N characters
+        $right(text,N) - Last N characters
+        $mid(text,start,len) - Substring
+        $pos(text,search) - Find position (1-indexed, 0 if not found)
+        $replace(text,old,new) - Replace text
+        $remove(text,substring) - Remove substring
+        $str(text,N) - Repeat text N times
+        $chr(N) - ASCII code to character
+        $asc(char) - Character to ASCII code
+        $strip(text) - Remove IRC color codes
+    
+    Tokenization:
+        $gettok(text,N,delim) - Get Nth token (delim is ASCII code)
+        $numtok(text,delim) - Count tokens
+        $findtok(text,search,start,delim) - Find token position
+        $addtok(text,token,delim) - Add token if not present
+        $remtok(text,token,delim) - Remove token
+        $reptok(text,old,new,delim) - Replace token
+    
+    Math Functions:
+        $rand(N) - Random number 0 to N-1
+        $calc(expr) - Calculate expression (e.g., 5+3*2)
+        $round(N,decimals) - Round number
+        $abs(N) - Absolute value
+        $sqrt(N) - Square root
+        $floor(N) - Round down
+        $ceil(N) - Round up
+    
+    File I/O:
+        $read(file) - Read random line from file
+        $read(file,N) - Read line N from file
+        $exists(file) - Check if file exists (True/False)
+        $lines(file) - Count lines in file
+    
+    User Levels:
+        $level - Current user's level
+        $level(nick) - Get user's level (0 if not set)
+        $islevel(nick,level) - Check if user has level >= specified (returns True/False)
 
 COMMANDS:
-    msg <target> <message>     - Send a message
-    notice <target> <message>  - Send a notice
-    me <target> <action>       - Send an action (/me)
-    join <channel> [key]       - Join a channel
-    part <channel> [message]   - Leave a channel
-    quit [message]             - Quit from server
-    nick <newnick>             - Change nickname
-    kick <channel> <nick> [reason] - Kick a user
-    ban <channel> <mask>       - Ban a user
-    mode <target> <modes>      - Set modes
-    echo <message>             - Display message locally
-    timer <name> <interval> <reps> { commands } - Create a timer
-    timer <name> off           - Stop a timer
-    halt                       - Stop script execution
-    return [value]             - Return from alias
-    setlevel <nick> <level>    - Set user's access level (0-1000)
-    remlevel <nick>            - Remove user's access level
-    getlevel <nick>            - Display user's current level
+    IRC Commands:
+        msg <target> <message>     - Send a message
+        notice <target> <message>  - Send a notice
+        me <target> <action>       - Send an action (/me)
+        join <channel> [key]       - Join a channel
+        part <channel> [message]   - Leave a channel
+        quit [message]             - Quit from server
+        nick <newnick>             - Change nickname
+        kick <channel> <nick> [reason] - Kick a user
+        ban <channel> <mask>       - Ban a user
+        mode <target> <modes>      - Set modes
+    
+    Script Control:
+        echo <message>             - Display message locally
+        halt                       - Stop script execution
+        return [value]             - Return from alias
+        timer <name> <interval> <reps> { commands } - Create a timer
+        timer <name> off           - Stop a timer
+    
+    File I/O:
+        write <file> <text>        - Append text to file
+        read <file> [line]         - Read and display from file
+        remove <file>              - Delete file
+    
+    User Levels:
+        setlevel <nick> <level>    - Set user's access level (0-1000)
+        remlevel <nick>            - Remove user's access level
+        getlevel <nick>            - Display user's current level
 
 CONTROL FLOW:
     if (<condition>) { commands }
@@ -536,6 +584,12 @@ class ScriptEngine:
                 self._cmd_remlevel(args)
             elif cmd == 'getlevel':
                 self._cmd_getlevel(args)
+            elif cmd == 'write':
+                self._cmd_write(args, context)
+            elif cmd == 'read':
+                self._cmd_read(args)
+            elif cmd == 'remove':
+                self._cmd_remove(args)
             else:
                 # Unknown command - might be a /command
                 if cmd.startswith('/'):
@@ -683,6 +737,74 @@ class ScriptEngine:
         nickname = args.strip()
         level = self.user_levels.get(nickname, 0)
         self._log_error(f"{nickname} has level: {level}")
+    
+    def _cmd_write(self, args: str, context: Dict[str, str]):
+        """Write text to file"""
+        parts = args.split(None, 1)
+        if len(parts) >= 2:
+            filename, text = parts
+            # Substitute variables in text
+            text = self._substitute_vars(text, context)
+            filepath = os.path.join(self.scripts_dir, filename)
+            try:
+                with open(filepath, 'a', encoding='utf-8') as f:
+                    f.write(text + '\n')
+            except Exception as e:
+                self._log_error(f"Error writing to {filename}: {e}")
+        else:
+            self._log_error("Usage: write <filename> <text>")
+    
+    def _cmd_read(self, args: str):
+        """Read from file and display"""
+        parts = args.split()
+        if not parts:
+            self._log_error("Usage: read <filename> [line_number]")
+            return
+        
+        filename = parts[0]
+        line_num = int(parts[1]) if len(parts) > 1 else None
+        filepath = os.path.join(self.scripts_dir, filename)
+        
+        try:
+            if not os.path.exists(filepath):
+                self._log_error(f"File not found: {filename}")
+                return
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = [line.rstrip('\n') for line in f.readlines()]
+            
+            if not lines:
+                self._log_error(f"File is empty: {filename}")
+                return
+            
+            if line_num is not None:
+                if 1 <= line_num <= len(lines):
+                    self._log_error(lines[line_num - 1])
+                else:
+                    self._log_error(f"Line {line_num} out of range (1-{len(lines)})")
+            else:
+                # Read random line
+                import random
+                self._log_error(random.choice(lines))
+        except Exception as e:
+            self._log_error(f"Error reading {filename}: {e}")
+    
+    def _cmd_remove(self, args: str):
+        """Remove/delete a file"""
+        filename = args.strip()
+        if not filename:
+            self._log_error("Usage: remove <filename>")
+            return
+        
+        filepath = os.path.join(self.scripts_dir, filename)
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                self._log_error(f"Removed file: {filename}")
+            else:
+                self._log_error(f"File not found: {filename}")
+        except Exception as e:
+            self._log_error(f"Error removing {filename}: {e}")
     
     def _cmd_timer(self, args: str, context: Dict[str, str], server: str, target: str):
         """Create or manage a timer"""
@@ -837,6 +959,37 @@ class ScriptEngine:
         text = re.sub(r'\$level\(([^)]+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context), 0)), text)
         text = re.sub(r'\$islevel\(([^,]+),(\d+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context), 0) >= int(m.group(2))), text)
         
+        # File I/O functions
+        text = re.sub(r'\$read\(([^,)]+)\)', lambda m: self._func_read(m.group(1).strip(), None, context), text)
+        text = re.sub(r'\$read\(([^,)]+),\s*(\d+)\)', lambda m: self._func_read(m.group(1).strip(), int(m.group(2)), context), text)
+        text = re.sub(r'\$exists\(([^)]+)\)', lambda m: str(self._func_exists(m.group(1).strip(), context)), text)
+        text = re.sub(r'\$lines\(([^)]+)\)', lambda m: str(self._func_lines(m.group(1).strip(), context)), text)
+        
+        # String tokenization functions
+        text = re.sub(r'\$gettok\(([^,]+),\s*(\d+),\s*(\d+)\)', lambda m: self._func_gettok(self._substitute_vars(m.group(1), context), int(m.group(2)), int(m.group(3))), text)
+        text = re.sub(r'\$numtok\(([^,]+),\s*(\d+)\)', lambda m: str(self._func_numtok(self._substitute_vars(m.group(1), context), int(m.group(2)))), text)
+        text = re.sub(r'\$findtok\(([^,]+),\s*([^,]+),\s*(\d+),\s*(\d+)\)', lambda m: str(self._func_findtok(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), int(m.group(3)), int(m.group(4)))), text)
+        text = re.sub(r'\$addtok\(([^,]+),\s*([^,]+),\s*(\d+)\)', lambda m: self._func_addtok(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), int(m.group(3))), text)
+        text = re.sub(r'\$remtok\(([^,]+),\s*([^,]+),\s*(\d+)\)', lambda m: self._func_remtok(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), int(m.group(3))), text)
+        
+        # Math operations
+        text = re.sub(r'\$calc\(([^)]+)\)', lambda m: str(self._func_calc(self._substitute_vars(m.group(1), context))), text)
+        text = re.sub(r'\$round\(([^,]+),\s*(\d+)\)', lambda m: str(self._func_round(self._substitute_vars(m.group(1), context), int(m.group(2)))), text)
+        text = re.sub(r'\$abs\(([^)]+)\)', lambda m: str(self._func_abs(self._substitute_vars(m.group(1), context))), text)
+        text = re.sub(r'\$sqrt\(([^)]+)\)', lambda m: str(self._func_sqrt(self._substitute_vars(m.group(1), context))), text)
+        text = re.sub(r'\$floor\(([^)]+)\)', lambda m: str(self._func_floor(self._substitute_vars(m.group(1), context))), text)
+        text = re.sub(r'\$ceil\(([^)]+)\)', lambda m: str(self._func_ceil(self._substitute_vars(m.group(1), context))), text)
+        
+        # Additional string functions
+        text = re.sub(r'\$pos\(([^,]+),\s*([^)]+)\)', lambda m: str(self._func_pos(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context))), text)
+        text = re.sub(r'\$replace\(([^,]+),\s*([^,]+),\s*([^)]+)\)', lambda m: self._func_replace(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), self._substitute_vars(m.group(3), context)), text)
+        text = re.sub(r'\$remove\(([^,]+),\s*([^)]+)\)', lambda m: self._func_remove(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context)), text)
+        text = re.sub(r'\$str\(([^,]+),\s*(\d+)\)', lambda m: self._func_str(self._substitute_vars(m.group(1), context), int(m.group(2))), text)
+        text = re.sub(r'\$chr\((\d+)\)', lambda m: chr(int(m.group(1))), text)
+        text = re.sub(r'\$asc\((.)\)', lambda m: str(ord(m.group(1))), text)
+        text = re.sub(r'\$strip\(([^)]+)\)', lambda m: self._func_strip(self._substitute_vars(m.group(1), context)), text)
+        text = re.sub(r'\$reptok\(([^,]+),\s*([^,]+),\s*([^,]+),\s*(\d+)\)', lambda m: self._func_reptok(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), self._substitute_vars(m.group(3), context), int(m.group(4))), text)
+        
         # Handle global variables: %%varname
         for name, value in self.global_vars.items():
             text = text.replace(f'%%{name}', value)
@@ -933,6 +1086,220 @@ class ScriptEngine:
                 json.dump(self.user_levels, f, indent=2)
         except Exception as e:
             print(f"Error saving user levels: {e}")
+    
+    # ==================== File I/O Helper Functions ====================
+    
+    def _func_read(self, filename: str, line_num: Optional[int], context: Dict[str, str]) -> str:
+        """Read from file - used by $read() identifier"""
+        filename = self._substitute_vars(filename, context)
+        filepath = os.path.join(self.scripts_dir, filename)
+        
+        try:
+            if not os.path.exists(filepath):
+                return ''
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = [line.rstrip('\n') for line in f.readlines()]
+            
+            if not lines:
+                return ''
+            
+            if line_num is not None:
+                if 1 <= line_num <= len(lines):
+                    return lines[line_num - 1]
+                return ''
+            else:
+                # Return random line
+                import random
+                return random.choice(lines)
+        except Exception as e:
+            return ''
+    
+    def _func_exists(self, filename: str, context: Dict[str, str]) -> bool:
+        """Check if file exists - used by $exists() identifier"""
+        filename = self._substitute_vars(filename, context)
+        filepath = os.path.join(self.scripts_dir, filename)
+        return os.path.exists(filepath)
+    
+    def _func_lines(self, filename: str, context: Dict[str, str]) -> int:
+        """Count lines in file - used by $lines() identifier"""
+        filename = self._substitute_vars(filename, context)
+        filepath = os.path.join(self.scripts_dir, filename)
+        
+        try:
+            if not os.path.exists(filepath):
+                return 0
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return sum(1 for _ in f)
+        except Exception as e:
+            return 0
+    
+    # ==================== String Tokenization Functions ====================
+    
+    def _func_gettok(self, text: str, n: int, delim: int) -> str:
+        """Get Nth token from delimited text"""
+        try:
+            delimiter = chr(delim)
+            tokens = text.split(delimiter)
+            if 1 <= n <= len(tokens):
+                return tokens[n - 1]
+        except (ValueError, IndexError):
+            pass
+        return ''
+    
+    def _func_numtok(self, text: str, delim: int) -> int:
+        """Count tokens in delimited text"""
+        try:
+            delimiter = chr(delim)
+            return len(text.split(delimiter))
+        except:
+            return 0
+    
+    def _func_findtok(self, text: str, search: str, start: int, delim: int) -> int:
+        """Find token in delimited text, return position"""
+        try:
+            delimiter = chr(delim)
+            tokens = text.split(delimiter)
+            # Search from start position (1-indexed)
+            for i in range(start - 1 if start > 0 else 0, len(tokens)):
+                if tokens[i] == search:
+                    return i + 1
+        except (ValueError, IndexError):
+            pass
+        return 0
+    
+    def _func_addtok(self, text: str, token: str, delim: int) -> str:
+        """Add token to delimited text (if not already present)"""
+        try:
+            delimiter = chr(delim)
+            tokens = text.split(delimiter) if text else []
+            if token not in tokens:
+                tokens.append(token)
+            return delimiter.join(tokens)
+        except:
+            return text
+    
+    def _func_remtok(self, text: str, token: str, delim: int) -> str:
+        """Remove token from delimited text"""
+        try:
+            delimiter = chr(delim)
+            tokens = text.split(delimiter)
+            tokens = [t for t in tokens if t != token]
+            return delimiter.join(tokens)
+        except:
+            return text
+    
+    # ==================== Math Functions ====================
+    
+    def _func_calc(self, expr: str) -> float:
+        """Calculate mathematical expression safely"""
+        try:
+            # Create safe namespace with basic math functions
+            import math
+            safe_dict = {
+                'abs': abs, 'round': round, 'min': min, 'max': max,
+                'pow': pow, 'sqrt': math.sqrt, 'floor': math.floor, 'ceil': math.ceil,
+                'sin': math.sin, 'cos': math.cos, 'tan': math.tan,
+                'pi': math.pi, 'e': math.e,
+                '__builtins__': {}
+            }
+            result = eval(expr, safe_dict, {})
+            return result
+        except Exception as e:
+            self._log_error(f"Calc error in '{expr}': {e}")
+            return 0
+    
+    def _func_round(self, value: str, decimals: int) -> float:
+        """Round number to specified decimal places"""
+        try:
+            return round(float(value), decimals)
+        except:
+            return 0.0
+    
+    def _func_abs(self, value: str) -> float:
+        """Get absolute value"""
+        try:
+            return abs(float(value))
+        except:
+            return 0.0
+    
+    def _func_sqrt(self, value: str) -> float:
+        """Get square root"""
+        try:
+            import math
+            return math.sqrt(float(value))
+        except:
+            return 0.0
+    
+    def _func_floor(self, value: str) -> int:
+        """Floor value (round down)"""
+        try:
+            import math
+            return math.floor(float(value))
+        except:
+            return 0
+    
+    def _func_ceil(self, value: str) -> int:
+        """Ceiling value (round up)"""
+        try:
+            import math
+            return math.ceil(float(value))
+        except:
+            return 0
+    
+    # ==================== Additional String Functions ====================
+    
+    def _func_pos(self, text: str, search: str) -> int:
+        """Find position of substring in text (1-indexed, 0 if not found)"""
+        try:
+            pos = text.find(search)
+            return pos + 1 if pos != -1 else 0
+        except:
+            return 0
+    
+    def _func_replace(self, text: str, old: str, new: str) -> str:
+        """Replace all occurrences of old with new"""
+        try:
+            return text.replace(old, new)
+        except:
+            return text
+    
+    def _func_remove(self, text: str, substring: str) -> str:
+        """Remove all occurrences of substring"""
+        try:
+            return text.replace(substring, '')
+        except:
+            return text
+    
+    def _func_str(self, text: str, count: int) -> str:
+        """Repeat text N times"""
+        try:
+            return text * count
+        except:
+            return text
+    
+    def _func_strip(self, text: str) -> str:
+        """Strip IRC color/control codes from text"""
+        try:
+            # Remove mIRC color codes (\x03)
+            text = re.sub(r'\x03\d{0,2}(,\d{1,2})?', '', text)
+            # Remove bold (\x02), underline (\x1f), reverse (\x16), reset (\x0f)
+            text = text.replace('\x02', '').replace('\x1f', '').replace('\x16', '').replace('\x0f', '')
+            return text
+        except:
+            return text
+    
+    def _func_reptok(self, text: str, old_token: str, new_token: str, delim: int) -> str:
+        """Replace token in delimited text"""
+        try:
+            delimiter = chr(delim)
+            tokens = text.split(delimiter)
+            tokens = [new_token if t == old_token else t for t in tokens]
+            return delimiter.join(tokens)
+        except:
+            return text
+    
+    # ==================== Utility Methods ====================
     
     # ==================== Script Management ====================
     
