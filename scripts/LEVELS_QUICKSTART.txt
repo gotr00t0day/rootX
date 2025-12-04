@@ -1,0 +1,128 @@
+╔══════════════════════════════════════════════════════════════╗
+║                  USER LEVELS QUICK START                     ║
+╚══════════════════════════════════════════════════════════════╝
+
+📊 LEVEL HIERARCHY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1000  👑  Owner       - Complete control
+   500  ⭐  Admin       - Manage users & bot
+   100  🛡️  Operator    - Channel management  
+    50  🔊  Voice       - Trusted user
+     0  👤  User        - Default
+
+
+🚀 FIRST TIME SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Make yourself owner:
+   /script eval setlevel YourNick 1000
+
+2. Verify scripts loaded:
+   /script list
+
+3. Test in a channel:
+   !level
+
+
+💬 CHAT COMMANDS (In Channel)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+!level [nick]              Check user level
+!setlevel <nick> <level>   Set level (admin+ only)
+!remlevel <nick>           Remove level (admin+ only)
+!adminhelp                 Show admin commands (admin+ only)
+!op <nick>                 Give operator (op+ only)
+!voice <nick>              Give voice (op+ only)
+!kick <nick> [reason]      Kick user (op+ only)
+!shutdown                  Shutdown bot (owner only)
+
+
+🔧 SCRIPT COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+setlevel <nick> <level>    Set user level
+remlevel <nick>            Remove user level  
+getlevel <nick>            Get user level (to status)
+
+
+🆔 IDENTIFIERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+$level                     Current user's level
+$level(nick)               Specific user's level
+$islevel(nick,level)       Check if user >= level
+
+
+📝 SCRIPT EXAMPLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Simple level check:
+  on TEXT:!admin:#:{
+      if ($level >= 500) {
+          msg $chan Admin command executed!
+      }
+  }
+
+Check another user:
+  on TEXT:!check*:#:{
+      set %lvl = $level($2)
+      msg $chan $2 has level %lvl
+  }
+
+Multi-tier access:
+  if ($level >= 1000) {
+      ; Owner only
+  }
+  else if ($level >= 500) {
+      ; Admin only
+  }
+  else if ($level >= 100) {
+      ; Operator only
+  }
+
+
+💡 COMMON PATTERNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Deny if not admin:
+  if ($level < 500) {
+      msg $chan Access denied
+      halt
+  }
+
+Check before acting on others:
+  set %target_lvl = $level($2)
+  if (%target_lvl >= $level) {
+      msg $chan Cannot act on equal/higher level
+      halt
+  }
+
+Auto-op on join:
+  on JOIN:*:#:{
+      if ($level($nick) >= 100) {
+          mode $chan +o $nick
+      }
+  }
+
+
+🎯 SUGGESTED LEVELS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1000  - You (owner)
+500   - Trusted admins who can manage users
+250   - Senior moderators
+100   - Channel moderators
+50    - Trusted/VIP users
+0     - Everyone else
+
+
+📁 FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+scripts/user_levels.json   - Level storage (auto-saved)
+scripts/userlevels.rsx     - Example implementation
+USER_LEVELS_GUIDE.md       - Full documentation
+
+
+⚠️  IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Backup user_levels.json regularly
+• Never give level 1000 to untrusted users
+• Test commands before using in production
+• Levels persist across bot restarts
+
+
+For complete documentation, see USER_LEVELS_GUIDE.md
+
