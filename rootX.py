@@ -2999,11 +2999,31 @@ class IRCClient:
             # Handle PRIVMSG (including channel messages and private messages)
             elif 'PRIVMSG' in data:
                 try:
+                    # Extract full hostmask: :nick!user@host PRIVMSG ...
+                    # Parse the sender's full address
+                    hostmask_parts = data.split(' PRIVMSG')
+                    if len(hostmask_parts) > 0:
+                        full_address = hostmask_parts[0].lstrip(':')  # nick!user@host
+                        
+                        # Parse components
                     parts = data.split('!')
                     if len(parts) > 1:
                         sender = parts[0].lstrip(':')
+                        
+                        # Extract user and host
+                        userhost = full_address.split('!', 1)[1] if '!' in full_address else ''
+                        user = userhost.split('@', 1)[0] if '@' in userhost else ''
+                        host = userhost.split('@', 1)[1] if '@' in userhost else ''
+                        
                         target = data.split('PRIVMSG')[1].split(':', 1)[0].strip()
                         message = data.split('PRIVMSG')[1].split(':', 1)[1].strip()
+                        
+                        # Build extra context with hostmask info
+                        extra_context = {
+                            'address': full_address,
+                            'user': user,
+                            'host': host
+                        }
                         
                         # Handle ACTION messages
                         if message.startswith('\x01ACTION') and message.endswith('\x01'):
@@ -3014,7 +3034,7 @@ class IRCClient:
                                     self.add_channel_action(channel_key, sender, action_text)
                                 # Trigger ACTION script event
                                 if self.script_engine:
-                                    self.script_engine.trigger_event('ACTION', sender, target, action_text, server)
+                                        self.script_engine.trigger_event('ACTION', sender, target, action_text, server, extra_context)
                             else:  # Private message action
                                 pm_key = f"{server}:{sender}"
                                 if pm_key not in self.private_windows:
@@ -3022,7 +3042,7 @@ class IRCClient:
                                 self.add_pm_action(pm_key, sender, action_text)
                                 # Trigger ACTION script event for PM
                                 if self.script_engine:
-                                    self.script_engine.trigger_event('ACTION', sender, sender, action_text, server)
+                                        self.script_engine.trigger_event('ACTION', sender, sender, action_text, server, extra_context)
                         else:
                             # Handle regular messages
                             if target.startswith('#'):  # Channel message
@@ -3031,15 +3051,15 @@ class IRCClient:
                                     self.add_channel_message(channel_key, f"{sender}: {message}")
                                 # Trigger TEXT script event
                                 if self.script_engine:
-                                    self.script_engine.trigger_event('TEXT', sender, target, message, server)
+                                        self.script_engine.trigger_event('TEXT', sender, target, message, server, extra_context)
                             else:  # Private message
                                 pm_key = f"{server}:{sender}"
                                 if pm_key not in self.private_windows:
                                     self.create_private_window(sender, server)
                                 self.add_pm_message(pm_key, f"{sender}: {message}")
-                                # Trigger TEXT script event for PM
+                                # Trigger MSG script event for PM
                                 if self.script_engine:
-                                    self.script_engine.trigger_event('TEXT', sender, '?', message, server)
+                                        self.script_engine.trigger_event('MSG', sender, sender, message, server, extra_context)
                                 
                     # Return after processing PRIVMSG to prevent duplicate processing
                     return
@@ -3096,11 +3116,33 @@ class IRCClient:
             # Handle JOIN messages
             elif 'JOIN' in data:
                 try:
+                    # Extract full hostmask: :nick!user@host JOIN #channel
+                    join_parts = data.split(' JOIN')
+                    if len(join_parts) > 0:
+                        full_address = join_parts[0].lstrip(':')  # nick!user@host
+                        
                     parts = data.split('!')
                     if len(parts) > 1:
                         user = parts[0].lstrip(':')
+                        
+                        # Extract user and host
+                        userhost = full_address.split('!', 1)[1] if '!' in full_address else ''
+                        username = userhost.split('@', 1)[0] if '@' in userhost else ''
+                        host = userhost.split('@', 1)[1] if '@' in userhost else ''
+                        
                         channel = data.split('JOIN')[1].strip().lstrip(':')
                         channel_key = f"{server}:{channel}"
+                        
+                        # Build extra context with hostmask info
+                        extra_context = {
+                            'address': full_address,
+                            'user': username,
+                            'host': host
+                        }
+                        
+                        # Trigger JOIN script event with hostmask info (always, not just if channel window exists)
+                        if self.script_engine:
+                            self.script_engine.trigger_event('JOIN', user, channel, '', server, extra_context)
                         
                         if channel_key in self.channel_windows:
                             channel_info = self.channel_windows[channel_key]
@@ -3114,10 +3156,6 @@ class IRCClient:
                                 if channel_key in self.channel_windows:
                                     self.channel_windows[channel_key]['waiting_for_names'] = True
                                 self.send_command(f"NAMES {channel}", server)
-                        
-                        # Trigger JOIN script event
-                        if self.script_engine:
-                            self.script_engine.trigger_event('JOIN', user, channel, '', server)
                 except Exception as e:
                     self.add_status_message(f"Error handling join: {e}")
                     
@@ -3231,15 +3269,32 @@ class IRCClient:
             # Handle PART messages
             elif 'PART' in data:
                 try:
+                    # Extract full hostmask: :nick!user@host PART #channel
+                    part_parts = data.split(' PART')
+                    full_address = part_parts[0].lstrip(':') if len(part_parts) > 0 else ''
+                    
                     parts = data.split('!')
                     if len(parts) > 1:
                         user = parts[0].lstrip(':')
+                        
+                        # Extract user and host
+                        userhost = full_address.split('!', 1)[1] if '!' in full_address else ''
+                        username = userhost.split('@', 1)[0] if '@' in userhost else ''
+                        host = userhost.split('@', 1)[1] if '@' in userhost else ''
+                        
                         channel = data.split('PART')[1].split()[0].strip()
                         channel_key = f"{server}:{channel}"
                         
-                        # Trigger PART script event
+                        # Build extra context with hostmask info
+                        extra_context = {
+                            'address': full_address,
+                            'user': username,
+                            'host': host
+                        }
+                        
+                        # Trigger PART script event with hostmask info
                         if self.script_engine:
-                            self.script_engine.trigger_event('PART', user, channel, '', server)
+                            self.script_engine.trigger_event('PART', user, channel, '', server, extra_context)
                         
                         # If we left the channel, close the tab
                         if user == self.connections[server]['nickname']:
@@ -3297,16 +3352,33 @@ class IRCClient:
             # Handle QUIT messages
             elif 'QUIT' in data:
                 try:
+                    # Extract full hostmask: :nick!user@host QUIT :message
+                    quit_parts = data.split(' QUIT')
+                    full_address = quit_parts[0].lstrip(':') if len(quit_parts) > 0 else ''
+                    
                     parts = data.split('!')
                     if len(parts) > 1:
                         user = parts[0].lstrip(':')
+                        
+                        # Extract user and host
+                        userhost = full_address.split('!', 1)[1] if '!' in full_address else ''
+                        username = userhost.split('@', 1)[0] if '@' in userhost else ''
+                        host = userhost.split('@', 1)[1] if '@' in userhost else ''
+                        
                         quit_msg = data.split('QUIT')[1].strip()
                         if ':' in quit_msg:
                             quit_msg = quit_msg.split(':', 1)[1].strip()
                         
-                        # Trigger QUIT script event
+                        # Build extra context with hostmask info
+                        extra_context = {
+                            'address': full_address,
+                            'user': username,
+                            'host': host
+                        }
+                        
+                        # Trigger QUIT script event with hostmask info
                         if self.script_engine:
-                            self.script_engine.trigger_event('QUIT', user, '*', quit_msg, server)
+                            self.script_engine.trigger_event('QUIT', user, '*', quit_msg, server, extra_context)
                         
                         # Update all channel windows where this user was present
                         for channel_key, channel_info in self.channel_windows.items():

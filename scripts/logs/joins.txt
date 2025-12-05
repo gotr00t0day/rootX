@@ -1,0 +1,6 @@
+[08:17:16] cro-mignon joined #hackers (cro-mignon!~weechat@user/cro-mignon)
+[08:31:34] housemate joined #hackers (housemate!~housemate@202.7.247.155)
+[08:37:05] rvalue joined #hackers (rvalue!~rvalue@about/hackers/rvalue)
+[08:38:05] techtruth joined #hackers (techtruth!~techtruth@ip68-0-138-240.tc.ph.cox.net)
+[08:38:05] techtruth joined #hackers (techtruth!~techtruth@user/techtruth)
+[08:40:46] cro-mignon joined #hackers (cro-mignon!~weechat@user/cro-mignon)

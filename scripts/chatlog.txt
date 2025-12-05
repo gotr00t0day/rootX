@@ -1,0 +1,1213 @@
+[12:30:42] c0d3ninja: hey
+[12:30:46] c0d3ninja: Whats up
+[12:30:48] c0d3ninja: Nothing
+[12:32:19] c0d3ninja: Lol
+[12:32:28] c0d3ninja: Logging this bitch
+[12:32:30] c0d3ninja: Hello
+[12:42:50] c0d3ninja: !whoami
+[12:45:27] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): Lol
+[12:54:58] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): loner
+[12:56:06] Armand|X13s (Armand|X13s!~Armand@user/armand): Could you stop pinging me, please...
+[12:56:07] Armand|X13s (Armand|X13s!~Armand@user/armand): :P
+[12:56:23] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): heh
+[13:03:45] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): dudes, can you figure the issue out
+[13:03:57] Armand|X13s (Armand|X13s!~Armand@user/armand): make sure sshd is running
+[13:04:07] ssm_ (ssm_!~ssm_@mail.howdoesmycode.work): bushmaster: is sshd running on bladeOS? can your external machine access the listening port with netcat or similar?
+[13:04:10] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): hang tight my dude
+[13:04:23] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): ssm_, no
+[13:04:25] ssm_ (ssm_!~ssm_@mail.howdoesmycode.work): MyTDT: this a troll?
+[13:04:27] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): hang tight my dudes
+[13:04:38] uwharrie (uwharrie!~uwharrie@user/uwharrie): ssm_: yes
+[13:04:55] MyTDT (MyTDT!~MyTDT@c-73-234-87-176.hsd1.ct.comcast.net): i think so
+[13:04:57] ssm_ (ssm_!~ssm_@mail.howdoesmycode.work): !ops totally radical troll, my dudes!
+[13:05:15] system72 (system72!~system72@user/system72): oh boy, here we go
+[13:05:19] Armand|X13s (Armand|X13s!~Armand@user/armand): Indeed, previously seen getting K/B'd from other channels.
+[13:05:54] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): i aint troll my dudes
+[13:06:23] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): it saus unable to locate package sshd
+[13:06:44] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): yes my dude
+[13:07:19] system72 (system72!~system72@user/system72): bushmaster: install openssh then
+[13:07:36] system72 (system72!~system72@user/system72): you can start the daemon with systemctl enable --now sshd
+[13:08:07] Armand|X13s (Armand|X13s!~Armand@user/armand): Talk about a 3 seconds on Google issue...
+[13:08:34] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): there is no package called openssh in blade my dude, there is one called openssh-server and it is already installed and doing fuck all
+[13:08:46] blobdog (blobdog!~blobdog@user/blobdog): openssh-server should do the trick
+[13:08:53] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): system72, hang tight my dude
+[13:09:08] system72 (system72!~system72@user/system72): bushmaster: you can just start the daemon then
+[13:09:20] blobdog (blobdog!~blobdog@user/blobdog): it's the "and it came to pass" of surfer lingo
+[13:10:13] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): system72, it says Failed to enable unit : Refusing to operate on alias name or linked unit file : sshd.service
+[13:10:55] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): blobdog, openssh-server is already installed and doing fuck all
+[13:11:15] system72 (system72!~system72@user/system72): bushmaster: specify sshd.service instead
+[13:11:31] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): how system72  my dude?
+[13:11:57] Armand|X13s (Armand|X13s!~Armand@user/armand): 'sudo systemctl enable --now sshd.service'
+[13:12:53] system72 (system72!~system72@user/system72): bushmaster: is it already enabled? whats inside of /etc/systemd/system/
+[13:12:55] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): hang tight Armand|X13s
+[13:12:58] Armand|X13s (Armand|X13s!~Armand@user/armand): This really is *EASY* Google stuff.
+[13:13:25] blobdog (blobdog!~blobdog@user/blobdog): bushmaster catching a wave with systemctl's gnarly interface rahhhh
+[13:13:35] system72 (system72!~system72@user/system72): seems like you got some weird configurations going on
+[13:13:35] znh (znh!~znh@user/znh): the horror
+[13:13:39] Armand|X13s (Armand|X13s!~Armand@user/armand): blobdog, tubular!
+[13:16:32] bushmaster (bushmaster!~DaddyGoon@user/bushmaster): system72,  hang tight my dude, you make lot more sense, i need to get into irc from other server
+[13:16:54] Armand|X13s (Armand|X13s!~Armand@user/armand): system72, it's just Ubuntu with some pointless theme adjustments.
+[13:17:05] bindi (bindi!~bindi@user/bindi): ?
+[13:17:08] znh (znh!~znh@user/znh): !ops smh
+[13:17:09] Armand|X13s (Armand|X13s!~Armand@user/armand): !ops rootX spammer
+[13:17:10] bindi (bindi!~bindi@user/bindi): lol
+[13:17:10] system72 (system72!~system72@user/system72): Armand|X13s: yeah not sure
+[13:17:31] vimart (vimart!~tramiv@user/vimart): Hi
+[13:17:41] uwharrie (uwharrie!~uwharrie@user/uwharrie): !ops rootX on join script running
+[13:17:57] vimart (vimart!~tramiv@user/vimart): Damn why my IP range is blocked lol
+[13:18:05] blobdog (blobdog!~blobdog@user/blobdog): how do i IP range unblock
+[13:18:09] ioria (ioria!~user4@net-109-116-121-9.cust.vodafonedsl.it): funny
+[13:18:10] gooncat (gooncat!~bushcat@user/bushmaster): howdy my dudes i am in different linux server now okay
+[13:18:11] Armand|X13s (Armand|X13s!~Armand@user/armand): !ops rootX someone ban this asshat.
+[13:18:12] system72 (system72!~system72@user/system72): rootX is a fresh nick..
+[13:18:24] gooncat (gooncat!~bushcat@user/bushmaster): yes I am the GOON Cat my dude
+[13:18:36] gooncat (gooncat!~bushcat@user/bushmaster): hang tight my dude system72
+[13:18:55] gooncat (gooncat!~bushcat@user/bushmaster): ho
+[13:19:02] gooncat (gooncat!~bushcat@user/bushmaster): i am not allowed
+[13:22:05] system72 (system72!~system72@user/system72): xd
+[13:22:11] system72 (system72!~system72@user/system72): fuck off
+[13:24:16] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): :|
+[13:24:24] Mathisen (Mathisen!~mathisen@about/linux/staff/mathisen): system72: what bot is spamming you
+[13:28:12] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !whoami
+[13:28:22] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): sfsdf
+[13:28:25] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): Sdfdsf
+[13:30:46] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): Efewf
+[13:30:49] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): wefwef
+[13:30:53] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !whoami
+[13:40:49] mdogg (mdogg!~mdogg@openSUSE/member/mdogg): It's nice having you around, system72.
+[13:42:37] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): Test this
+[13:52:26] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): 🌳🌳🌳 •*´¨`*•.¸¸.•*´¨`*•.¸¸.••*´¨`*•.¸¸ 🦆 QUACK!
+[13:52:28] deconfed (deconfed!~UserNick@user/deconfed): @bang
+[13:52:29] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): deconfed: 🦆✔️ | Score: -20 (3.08 seconds )
+[13:54:32] MinceR (MinceR!mincer@user/lightbringer): @echo QUACK!
+[13:54:32] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): QUACK!
+[13:54:32] deconfed (deconfed!~UserNick@user/deconfed): @bang
+[13:54:34] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): deconfed: ❌ There was no duck! ❌ deconfed: -21 (127.72 seconds)
+[13:54:39] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): PythonUser: ❌ There was no duck! ❌ PythonUser: -1 (133.06 seconds)
+[13:54:44] MinceR (MinceR!mincer@user/lightbringer): @echo QUACK!
+[13:54:44] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): QUACK!
+[13:54:44] deconfed (deconfed!~UserNick@user/deconfed): @bang
+[13:54:45] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): deconfed: ❌ There was no duck! ❌ deconfed: -22 (139.49 seconds)
+[13:54:52] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): PythonUser: ❌ There was no duck! ❌ PythonUser: -2 (145.89 seconds)
+[13:54:56] MinceR (MinceR!mincer@user/lightbringer): @echo QUACK!
+[13:54:56] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): QUACK!
+[13:54:56] deconfed (deconfed!~UserNick@user/deconfed): @bang
+[13:54:57] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): deconfed: ❌ There was no duck! ❌ deconfed: -23 (151.42 seconds)
+[13:55:30] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): PythonUser: ❌ There was no duck! ❌ PythonUser: -3 (184.15 seconds)
+[13:58:41] MinceR (MinceR!mincer@user/lightbringer): @echo QUACK!
+[13:58:41] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): QUACK!
+[13:58:41] deconfed (deconfed!~UserNick@user/deconfed): @bang
+[13:58:41] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): deconfed: ❌ There was no duck! ❌ deconfed: -24 (363.91 seconds)
+[14:02:24] irked (irked!~irked@user/irked): holy moly this brother printer i got this afternoon makes my canon, not a canon.
+[14:02:43] mgedmin (mgedmin!~mg@user/mgedmin): can I have a dataclass that forwards one of its fields elsewhere via a property?  I want that field included in the generated __repr__
+[14:02:49] irked (irked!~irked@user/irked): i click on print test page and this thing just like shoots out a printed test page in like 1s
+[14:02:57] irked (irked!~irked@user/irked): lol
+[14:03:06] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): mefistofeles: as in .field and .someproperty exists?
+[14:03:52] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): (where .someproperty returns .field)
+[14:04:08] theseb (theseb!~theseb@2606:e2c0:104:a9b1:cbc9:42b4:7c3a:9dbc): gAy_Dragon: an instant debugging service is totally safe no?
+[14:04:26] ashafq (ashafq!~ashafq@user/ashafq): irked: I am glad you like your new printer.
+[14:04:39] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): theseb: you cannot make an analogy, then when I respond directly to the analogy, reframe my statement outside of the analogy
+[14:04:49] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): _regardless_, no, because the information returned could be GPL'd.
+[14:04:50] TML (TML!~tml@user/tml): theseb: can we not have that debate here?
+[14:04:54] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): and ^.
+[14:04:56] ashafq (ashafq!~ashafq@user/ashafq): I keep two printers around just in case of them fails.
+[14:05:05] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): mefistofeles: if yes, just @property in the class def should be fine?
+[14:05:23] irked (irked!~irked@user/irked): i didnt know printers are this crazy fast nowadays
+[14:05:27] irked (irked!~irked@user/irked): mine's pretty old
+[14:05:32] TML (TML!~tml@user/tml): gAy_Dragon: you're targeting mefistofeles but mgedmin asked the question
+[14:05:37] irked (irked!~irked@user/irked): cant find ink for it :|
+[14:05:37] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): ...
+[14:05:38] ashafq (ashafq!~ashafq@user/ashafq): maybe someday I will write a printer driver that does RAID-0 of printout
+[14:05:39] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): DANGIT
+[14:05:46] irked (irked!~irked@user/irked): heheheheh cool
+[14:05:59] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): sorry mefistofeles, mgedmin, same thing, I always flip the g and e in your nick
+[14:06:05] nb-ben (nb-ben!~ben@user/nb-ben): what do you print with it?
+[14:06:09] TML (TML!~tml@user/tml): wasn't going to say anything the first time, but you kept going :)
+[14:06:09] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): lol I was confused
+[14:06:27] MacGyver (MacGyver!~macgyver@user/macgyver): See this is why you need to be more lazy.
+[14:06:39] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): TML: in my defense I didnt spot the colour difference as I just have 12 lines
+[14:06:42] irked (irked!~irked@user/irked): i usually do more scanning, so i looked for an adf
+[14:06:43] MacGyver (MacGyver!~macgyver@user/macgyver): Had you just typed "m<tab>" everything would have been fine, presumably.
+[14:06:47] phryk (phryk!~totallyno@user/phryk): Is there a page I can use to look up which kernel version supports which gpus? I'm trying to nail down exactly what version I need for a 9070xt.
+[14:06:48] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): MacGyver: No, thats what got into me, I typed me<tab>
+[14:06:58] MacGyver (MacGyver!~macgyver@user/macgyver): Exactly. *More* lazy.
+[14:06:59] irked (irked!~irked@user/irked): i just print documents like for when i sold my house and stuff like that
+[14:07:52] MacGyver (MacGyver!~macgyver@user/macgyver): (Unless you run a client that doesn't keep a priority list based on who last spoke, I think irssi is one of those by default)
+[14:07:53] nb-ben (nb-ben!~ben@user/nb-ben): yeah I guess RE people still need real paper lol
+[14:08:06] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): gAy_Dragon: don't even use nicknames and you'll never have this problem
+[14:08:06] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): xD
+[14:08:13] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): weechat does, I just generally two chars x.x
+[14:08:17] irked (irked!~irked@user/irked): its all these irritating financial and legal people
+[14:08:17] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): mefistofeles: well FINE
+[14:08:25] nb-ben (nb-ben!~ben@user/nb-ben): even though people sell companies for hundreds of millions using digital signage :p
+[14:08:34] deconfed (deconfed!~UserNick@user/deconfed): э
+[14:08:34] irked (irked!~irked@user/irked): they always want signatures n stuff lol
+[14:08:35] blobdog (blobdog!~blobdog@user/blobdog): phryk: see if it's listed in the Linux Hardware Database https://linux-hardware.org
+[14:08:42] blobdog (blobdog!~blobdog@user/blobdog): ...which is loading very slowly
+[14:08:53] nb-ben (nb-ben!~ben@user/nb-ben): you can sign with your phone these days
+[14:08:56] irked (irked!~irked@user/irked): yeah i dunno when south africa will be on that level
+[14:09:23] xless1 (xless1!~caesari02@user/xless1): the ink cost a fortune, like $70000 for my epson
+[14:09:39] irked (irked!~irked@user/irked): these days a printer is its ink cost
+[14:09:44] irked (irked!~irked@user/irked): its ridiculous
+[14:09:47] phryk (phryk!~totallyno@user/phryk): yes^^
+[14:09:49] irked (irked!~irked@user/irked): and they take up a lot of desk space
+[14:10:04] phryk (phryk!~totallyno@user/phryk): but sounds very exactly like what i'm looking for (if it displays kernel versions)
+[14:10:52] the_watcher (the_watcher!uid731096@user/the-watcher:50416): phryk: 6.13.5 and up
+[14:11:12] nb-ben (nb-ben!~ben@user/nb-ben): and if you forget your admin password, you need their customer service to reset it
+[14:11:30] the_watcher (the_watcher!uid731096@user/the-watcher:50416): Technically 6.12 but the performance was crappy til 6.13.5
+[14:11:35] phryk (phryk!~totallyno@user/phryk): the_watcher: is the site loading faster for you or where'd you get that information?
+[14:11:46] irked (irked!~irked@user/irked): i nearly got that huge epson projector, until i realised i'll need to paint or get a thing for it to project onto
+[14:11:59] theseb (theseb!~theseb@2606:e2c0:104:a9b1:cbc9:42b4:7c3a:9dbc): gAy_Dragon: you make a valid point
+[14:12:01] nb-ben (nb-ben!~ben@user/nb-ben): just to remind you, you're just paying for the privilege of having their hardware in your house, not to actually own it
+[14:12:09] the_watcher (the_watcher!uid731096@user/the-watcher:50416): Google
+[14:12:27] irked (irked!~irked@user/irked): obviously you dont own it man, that's how intellectual property works
+[14:12:35] irked (irked!~irked@user/irked): :-)
+[14:12:42] the_watcher (the_watcher!uid731096@user/the-watcher:50416): the_watcher: also says it https://www.phoronix.com/review/amd-radeon-rx9070-linux
+[14:12:55] the_watcher (the_watcher!uid731096@user/the-watcher:50416): Woops I meant phryk
+[14:13:02] irked (irked!~irked@user/irked): i feel like a teenager, let me print some pornoz
+[14:13:20] smoll (smoll!~smoll@user/smoll): wayland or xorg
+[14:13:24] irked (irked!~irked@user/irked): put some faces on etc. with photoshop. etc.
+[14:13:43] smoll (smoll!~smoll@user/smoll): whats even the difference
+[14:13:58] the_watcher (the_watcher!uid731096@user/the-watcher:50416): Lots of things
+[14:14:24] smoll (smoll!~smoll@user/smoll): like what
+[14:14:27] xx (xx!~xx@user/xx): both can display a cat, not much difference aside from that
+[14:14:38] smoll (smoll!~smoll@user/smoll): exactly
+[14:14:45] phryk (phryk!~totallyno@user/phryk): the_watcher: ah thanks, that mirrors what i read on some site (i think it was thereg or phoronix) about symbols for those cards appearing in the code, but without a definite statement whether that was just in preparation or meant actual support.
+[14:14:46] kariosfox (kariosfox!~karios@095160156110.dynamic-2-waw-k-4-0-0.vectranet.pl): i guess one is newer by several decades
+[14:15:01] xx (xx!~xx@user/xx): kariosfox: doesn't matter, it's an old cat picture
+[14:15:17] phryk (phryk!~totallyno@user/phryk): wayland should have a lot less roundtrips for its rendering.
+[14:15:56] SnoopJ (SnoopJ!~snoopj@user/snoopj): TML, square box with a button that says fork(2) on it? :)
+[14:15:58] smoll (smoll!~smoll@user/smoll): i wish desktop enviornments were just framebuffer
+[14:16:06] the_watcher (the_watcher!uid731096@user/the-watcher:50416): https://www.irccloud.com/pastebin/HljIxAOd
+[14:16:07] phryk (phryk!~totallyno@user/phryk): but with a gpu from the last 10-15 years, i doubt it makes much of a felt difference. i'm still on xorg because i want to write my own wayland compositor (i'm crazy, wouldn't recommend that approach).
+[14:16:30] the_watcher (the_watcher!uid731096@user/the-watcher:50416): Think of Xorg as an old phone system with a switchboard operator, and Wayland as a modern smartphone with a streamlined network where phones connect more directly. Wayland is the future, but some older applications might have compatibility issues because it’s a big change from Xorg.
+[14:18:08] phryk (phryk!~totallyno@user/phryk): i wonder whether using wayland would actually translate to better gaming performance. guess i'll get to try as i'll have to migrate my desktop from freebsd to linux to get support for my new gpu before 2027^^;
+[14:18:13] TML (TML!~tml@user/tml): SnoopJ: it comes into existence, its life is intended to be brief and serve a very specific purpose, then it goes away; every moment the process remains running is painful to it :)
+[14:18:56] the_watcher (the_watcher!uid731096@user/the-watcher:50416): Heh. Ya gaming on freebsd isn't much of a priority
+[14:19:19] phryk (phryk!~totallyno@user/phryk): not much of a possibility either, tho i haven't given proton a try yet and apparently there's a port…
+[14:19:22] password (password!~password8@user/password2): :O
+[14:19:41] mlu (mlu!~mlu@about/linux/staff/mlu): I really liked FreeBSD, but Linux has simply gotten way improved over the past couple decades
+[14:19:48] phryk (phryk!~totallyno@user/phryk): currently, i just have a parallel win10 install i use for gaming only, but if i can get more games over to *nix, that'd be great.
+[14:20:20] Lore (Lore!~Lore@user/Lore): smoll, it's in the very FAQ of Wayland which is quite cheerful.
+[14:20:48] phryk (phryk!~totallyno@user/phryk): mlu: i honestly think freebsd has *much* better engineering than pretty much any linux distro i ever came across. my only gripe is the driver support, but "*nix gamedev" is hardly the target audience of the OS^^;
+[14:20:51] Lore (Lore!~Lore@user/Lore): smoll, https://wayland.freedesktop.org/faq.html#heading_toc_j_2
+[14:21:05] irked (irked!~irked@user/irked): im kidding :)
+[14:21:15] mlu (mlu!~mlu@about/linux/staff/mlu): phryk: totally agreed there -- the comprehensive system design is key
+[14:21:34] djph (djph!~dpurgert@24.160.186.189): (no you're not)
+[14:21:37] mlu (mlu!~mlu@about/linux/staff/mlu): and yet, driver support is so much of what makes the system work well, in practice
+[14:21:39] irked (irked!~irked@user/irked): shhht
+[14:21:42] phryk (phryk!~totallyno@user/phryk): mlu: yeah, the entire "one place to make it all" just makes for way better integration, that's kind of *the* inherent bsd advantage.
+[14:22:07] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): especially if its a python proc
+[14:22:09] tokaparas (tokaparas!tokaparas@user/tokaparas): phryk: you're lucky to test the system now, before the choice is taken away from you
+[14:22:19] djph (djph!~dpurgert@24.160.186.189): wait, which POS not-your-printer did you buy?
+[14:22:19] phryk (phryk!~totallyno@user/phryk): that said, i'm absolutely looking forward to trying void linux.
+[14:22:24] phryk (phryk!~totallyno@user/phryk): tokaparas: what do you mean?
+[14:22:38] irked (irked!~irked@user/irked): i got a brother dcp t730dw
+[14:22:39] tokaparas (tokaparas!tokaparas@user/tokaparas): phryk: distros/DEs are killing xorg
+[14:22:41] irked (irked!~irked@user/irked): that's what it says
+[14:23:00] djph (djph!~dpurgert@24.160.186.189): hm, inkjet?
+[14:23:06] phryk (phryk!~totallyno@user/phryk): eh, can't really fault them for that. xorg has already been hanging on for way longer than i anticipated.
+[14:23:13] irked (irked!~irked@user/irked): yeh
+[14:23:19] tokaparas (tokaparas!tokaparas@user/tokaparas): phryk: works fine today
+[14:23:44] phryk (phryk!~totallyno@user/phryk): tokaparas: yeah, i'm still running xorg with awesomewm; but like i said, only because i haven't gotten around to writing my own wayland compositor. :P
+[14:24:28] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): To be fair, X11's design has survived many unanticipated major features over the decades.  It's hard to poo poo on it.
+[14:24:35] phryk (phryk!~totallyno@user/phryk): i'll probably try out sway when i set up void tho.
+[14:24:37] japon (japon!~japon@97.144-121-193.fia-dyn.isp.proximus.be): irked: i got one of those epson projectors. i have no issue projecting on a my wall that's cream color that has a "crepi" texture on it.
+[14:25:02] irked (irked!~irked@user/irked): japon you're serious?
+[14:25:04] japon (japon!~japon@97.144-121-193.fia-dyn.isp.proximus.be): unless your walls are super dark, i don't think you need to worry about that
+[14:25:13] irked (irked!~irked@user/irked): cool!
+[14:25:39] phryk (phryk!~totallyno@user/phryk): HeadphoneJack: yea, not trying to do that. back in the day especially it was way more versatile than what for example windows had; but it's just more of a mainframe-era kind of system and at some point the technical debt from its heritage just becomes too much to keep mainstream support.
+[14:26:12] tokaparas (tokaparas!tokaparas@user/tokaparas): becomes too much means the plan is to kill it
+[14:26:43] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): omg
+[14:27:15] uwharrie (uwharrie!~uwharrie@user/uwharrie): meanwhile some of the things X11 was able to easily do are still yet to be solved in a consistent or stable way
+[14:27:29] deconfed (deconfed!~UserNick@user/deconfed): ol
+[14:27:30] Lore (Lore!~Lore@user/Lore): > Also, the entire core rendering API that lets you draw stippled lines, polygons, wide arcs and many more state-of-the-1980s style graphics primitives.
+[14:27:37] phryk (phryk!~totallyno@user/phryk): not really, phased out support by other projects is something else; you also have to acknowledge that keeping support eats a lot of time distros and DEs could spend on areas that are more pressing than keeping support for something that was intended for a very different type of environment.
+[14:27:38] Lore (Lore!~Lore@user/Lore): < https://wayland.freedesktop.org/faq.html
+[14:28:11] japon (japon!~japon@97.144-121-193.fia-dyn.isp.proximus.be): also, nothing glossy. tried once on my kitchen wall where there a slight gloss - the reflection was painfully bright
+[14:28:22] Lore (Lore!~Lore@user/Lore): > But we can't ever get rid of the core rendering API and much other complexity that is rarely used in a modern desktop.
+[14:28:22] tokaparas (tokaparas!tokaparas@user/tokaparas): very different meaning the GUI ?
+[14:28:25] irked (irked!~irked@user/irked): i ordered a tv though
+[14:28:36] phryk (phryk!~totallyno@user/phryk): i fully expect there to be niche distros that continue to support xorg till at least 2050 tbh
+[14:28:57] phryk (phryk!~totallyno@user/phryk): tokaparas: no, xorg was literally developed for a networked mainframe/terminal environment.
+[14:29:14] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): i was waiting for that :)
+[14:29:25] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): hows the regex going?
+[14:29:31] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): <-- regex junkie
+[14:29:33] tokaparas (tokaparas!tokaparas@user/tokaparas): phryk: so? it's also used locally. and there's xpra
+[14:29:36] phryk (phryk!~totallyno@user/phryk): much of that was torn out in the last 20-odd years, but the overall architecture still reflects it. it just doesn't fit the modern use-case of everything being rendered locally well.
+[14:29:51] mgedmin (mgedmin!~mg@user/mgedmin): no, I want a @dataclass class DebugFlags: timings: bool; @property def timings(self): return elsewhere.timings; @timings.setter def timings(self, value): elsewhere.timings = value
+[14:30:03] phryk (phryk!~totallyno@user/phryk): yeah, that it *can* do it doesn't mean it can do it *well*.
+[14:30:09] tokaparas (tokaparas!tokaparas@user/tokaparas): it does it well
+[14:30:19] phryk (phryk!~totallyno@user/phryk): debatable at best.
+[14:30:21] tokaparas (tokaparas!tokaparas@user/tokaparas): you should try it one day
+[14:30:39] phryk (phryk!~totallyno@user/phryk): mate, are you daft? how many times do i have to tell you that i'm actually running xorg *right now*?
+[14:31:01] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): mefistofeles: you want this to set elsewhere.* when constructed with a value?
+[14:31:08] tokaparas (tokaparas!tokaparas@user/tokaparas): why do you hate it then?
+[14:31:30] irked (irked!~irked@user/irked): its a bloodbath at the shopping malls here
+[14:31:33] mgedmin (mgedmin!~mg@user/mgedmin): yes, this is a singleton that needs to forward to a module global elsewhere for reasons (avoiding a dependency cycle)
+[14:31:35] phryk (phryk!~totallyno@user/phryk): aight, i'll be ignoring you now as you evidently have no interest in a good-faith discussion.
+[14:31:54] mgedmin (mgedmin!~mg@user/mgedmin): technically I don't need this flag in __init__
+[14:32:05] mgedmin (mgedmin!~mg@user/mgedmin): perhaps it's easiest to lose the default __repr__ and make one myself
+[14:32:15] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): make the classvar an initvar, accept it there, then set self.* with it there, which should forward correctly to the setter
+[14:32:37] gAy_Dragon (gAy_Dragon!A_D@libera/staff/dragon): but yeah, just, kill the default repr, or even do some magic to replace it and save a copy at construct time
+[14:32:51] MinceR (MinceR!mincer@user/lightbringer): "aeiou"
+[14:32:51] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats MinceR! Your new score is: -10577 (+-28236)
+[14:32:54] Lore (Lore!~Lore@user/Lore): phryk, please don't worry, it's just that some people don't care about history, and want someone's effort and work burn, for literally unknown reason, regardless how diverse the infinite the world is out there with unique environments and tasks/issues. Or they are just not serious at all.
+[14:32:56] MinceR (MinceR!mincer@user/lightbringer): lol
+[14:32:57] deconfed (deconfed!~UserNick@user/deconfed): love regex too
+[14:32:59] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): heh
+[14:33:05] deconfed (deconfed!~UserNick@user/deconfed): it helps mirror bank system very well
+[14:33:07] MinceR (MinceR!mincer@user/lightbringer): seems even more broken than before
+[14:33:13] MinceR (MinceR!mincer@user/lightbringer): !regex scores
+[14:33:13] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | spithash (1): 43174  | | lightbringer (2): 42447  | | msfvenom (3): 42440  | | jmp-2 (4): 42220  | | chair1 (5): 41971  | | fgarcia (6): 39009  | | rwxroot (7): 28607  | | th|ef (8): -181  | | mincer (9): -10577  | | iz (10): -21592  |
+[14:33:39] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): News from bleepingcomputer: Russia blocks FaceTime and Snapchat over use in terrorist attacks - https://www.bleepingcomputer.com/news/security/russia-blocks-facetime-and-snapchat-over-use-in-terrorist-attacks/
+[14:33:46] MinceR (MinceR!mincer@user/lightbringer): maybe the score went well into the negative because of the elapsed time
+[14:33:50] MinceR (MinceR!mincer@user/lightbringer): but still, +-?
+[14:33:56] tokaparas (tokaparas!tokaparas@user/tokaparas): but i really really care about history and saving xorg
+[14:34:23] fgarcia (fgarcia!~lei@user/fgarcia): SkUzZy is crashing out
+[19:26:40] Elladan (Elladan!~elladan@user/elladan): n1bble: that onion article was great. Oh wait
+[19:26:50] n1bble (n1bble!~n1bble@user/n1bble): school is a bit pointless in the age of AI anyway
+[19:28:02] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})(?![b-df-hj-np-tv-z]{4})[a-z]{8,12}\b`
+[19:28:10] MinceR (MinceR!mincer@user/lightbringer): "password"
+[19:28:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16195 (+100)
+[19:28:26] MinceR (MinceR!mincer@user/lightbringer): indeed
+[19:29:20] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,12}$`
+[19:29:26] MinceR (MinceR!mincer@user/lightbringer): "dicks"
+[19:29:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16295 (+100)
+[19:30:08] n1bble (n1bble!~n1bble@user/n1bble): sleep is truly the final frontier of capitalism. it's the last remaining territory that has resisted the conversion to productive time
+[19:30:12] kzt (kzt!administra@about/hackers/kzt): It’s a cycle with the same questions and answers.
+[19:30:15] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,12}$`
+[19:30:22] MinceR (MinceR!mincer@user/lightbringer): "cocks"
+[19:30:22] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16395 (+100)
+[19:30:22] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): Al doesn't sleep
+[19:30:24] MinceR (MinceR!mincer@user/lightbringer): yes, usually
+[19:30:31] lidless (lidless!lidless@about/hackers/lidless): @bang
+[19:30:32] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): lidless: ❌ There was no duck! ❌ lidless: -1 (400.12 seconds)
+[19:30:41] kzt (kzt!administra@about/hackers/kzt): lol
+[19:30:45] MinceR (MinceR!mincer@user/lightbringer): deepseek's regex challenges are for some reason usually these password rule things
+[19:31:00] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![aeiou]{3})(?=.*[b-df-hj-np-tv-z]{3})[a-z]{8,12}$`
+[19:31:14] MinceR (MinceR!mincer@user/lightbringer): "pigdicks"
+[19:31:14] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16495 (+100)
+[19:31:19] kzt (kzt!administra@about/hackers/kzt): xd
+[19:31:23] lidless (lidless!lidless@about/hackers/lidless): man I can't solve lookaheads in my head
+[19:31:36] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,20}$`
+[19:31:37] MinceR (MinceR!mincer@user/lightbringer): you can think of them as rules in this case
+[19:31:47] MinceR (MinceR!mincer@user/lightbringer): "Password1!"
+[19:31:47] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16595 (+100)
+[19:32:01] MinceR (MinceR!mincer@user/lightbringer): like "must have uppercase letter", "must have lowercase letter", "must have digit"
+[19:32:08] lidless (lidless!lidless@about/hackers/lidless): "strawberry"
+[19:32:13] lidless (lidless!lidless@about/hackers/lidless): hmm
+[19:32:24] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -100 (-100)
+[19:32:28] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,12}$`
+[19:32:34] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[19:32:34] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16695 (+100)
+[19:32:45] lidless (lidless!lidless@about/hackers/lidless): that's cheating. cunts always win
+[19:32:48] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:33:36] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![aeiou]{3})[a-z]{8,12}$`
+[19:33:37] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[19:33:48] MinceR (MinceR!mincer@user/lightbringer): "password"
+[19:33:48] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16795 (+100)
+[19:33:52] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[19:34:30] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?!.*(.)\1{2})[A-Za-z\d@$!%*?&]{8,}$`
+[19:34:42] lidless (lidless!lidless@about/hackers/lidless): "Regex Challenge!"
+[19:34:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -200 (-100)
+[19:34:48] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "pAssw9r#d"
+[19:34:48] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -199 (-100)
+[19:34:57] meaty (meaty!~KVIrc@user/meaty): hello o/
+[19:35:00] MinceR (MinceR!mincer@user/lightbringer): "Passw0rd"
+[19:35:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16895 (+100)
+[19:35:03] Armand|X13s (Armand|X13s!~Armand@user/armand): n1bble, wait until ads in dreams...
+[19:35:07] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): FFS :p
+[19:35:12] lidless (lidless!lidless@about/hackers/lidless): MinceR what is up with your neural processes
+[19:35:13] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): MinceR - solve the topic :p
+[19:35:16] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[19:35:21] MinceR (MinceR!mincer@user/lightbringer): the topic is not so easy
+[19:35:28] MinceR (MinceR!mincer@user/lightbringer): i've looked at it once before joining
+[19:35:31] lidless (lidless!lidless@about/hackers/lidless): I did it in r2
+[19:35:35] lidless (lidless!lidless@about/hackers/lidless): wait, oops
+[19:35:41] meaty (meaty!~KVIrc@user/meaty): does anyone have any good beginner's resources on nginx? I'm trying to serve a simple PHP app but all search engines give these days is "blog" slop
+[19:35:45] MinceR (MinceR!mincer@user/lightbringer): or at least it's not so easy for me
+[19:35:53] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): good call lidless ssh
+[19:35:54] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): :p
+[19:36:06] lidless (lidless!lidless@about/hackers/lidless): it really tests your knowledge of topics
+[19:36:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1\1)(?![^0-9]*[0-9]{4})[a-z]{5,12}\b`
+[19:36:21] lidless (lidless!lidless@about/hackers/lidless): password1aaaaa
+[19:36:24] lidless (lidless!lidless@about/hackers/lidless): "password1aaaaa"
+[19:36:25] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -300 (-100)
+[19:36:29] MacGyver (MacGyver!~macgyver@user/macgyver): Have you considered going to the source?
+[19:36:32] MinceR (MinceR!mincer@user/lightbringer): "lofasz"
+[19:36:32] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 16995 (+100)
+[19:36:33] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "a09473a"
+[19:36:36] MacGyver (MacGyver!~macgyver@user/macgyver): https://nginx.org/en/docs/beginners_guide.html
+[19:36:37] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[19:36:38] Elladan (Elladan!~elladan@user/elladan): I had an ad in my dream last night
+[19:36:44] MacGyver (MacGyver!~macgyver@user/macgyver): And the top-level above that.
+[19:36:59] lidless (lidless!lidless@about/hackers/lidless): the \1 is the placeholder for the previous lookahead??
+[19:37:09] MinceR (MinceR!mincer@user/lightbringer): no, for the previous capturing group
+[19:37:10] tokaparas (tokaparas!tokaparas@user/tokaparas): blogs are great source of information
+[19:37:13] meaty (meaty!~KVIrc@user/meaty): I've looked around there, there's nothing about php
+[19:37:14] Elladan (Elladan!~elladan@user/elladan): I kept remembering the brand name of some little portable router I bought ages ago. Why? I couldn't even remember what it did until I woke up!
+[19:37:15] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): Elladan: It was for a sleep aid, right?
+[19:37:16] MinceR (MinceR!mincer@user/lightbringer): rather, the first capturing group
+[19:37:20] MinceR (MinceR!mincer@user/lightbringer): \2 is the second, etc.
+[19:37:30] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -299 (-100)
+[19:37:33] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$`
+[19:37:47] MinceR (MinceR!mincer@user/lightbringer): "Passw0rd!"
+[19:37:47] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17095 (+100)
+[19:37:50] meaty (meaty!~KVIrc@user/meaty): tokaparas: I mean those "blogs" that are titled stuff like "Best way to how to serve php with nginix in 2024"
+[19:37:54] lidless (lidless!lidless@about/hackers/lidless): that's supernatural
+[19:38:06] lidless (lidless!lidless@about/hackers/lidless): You must code in LISP
+[19:38:10] MinceR (MinceR!mincer@user/lightbringer): i should
+[19:38:11] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): hes good lol
+[19:38:16] MinceR (MinceR!mincer@user/lightbringer): i haven't gotten far in it yet, though
+[19:38:25] lidless (lidless!lidless@about/hackers/lidless): it's like thinking backwards
+[19:38:26] Elladan (Elladan!~elladan@user/elladan): HeadphoneJack: networking annoys the hell out of me, I can't sleep with that nonsense!
+[19:38:30] meaty (meaty!~KVIrc@user/meaty): 1. How is How to Serve PHP with Nginx Important?
+[19:38:32] Lore (Lore!~Lore@user/Lore): meaty, please consider joining #php.
+[19:38:36] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3})(?!.*[0-9])(?=.*[A-Z])(?=.*[!@#$%^&*])[A-Za-z!@#$%^&*]{8,20}$`
+[19:38:36] sloopyjoe (sloopyjoe!~sloopyjoe@user/sloopyjoe): Faster Internet No Download Free Download Legit Working 2013 No Virus No Survey
+[19:38:49] lidless (lidless!lidless@about/hackers/lidless): "JA!09nisJ@lin"
+[19:38:50] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -400 (-100)
+[19:38:52] MinceR (MinceR!mincer@user/lightbringer): these are all rather similar in how they work
+[19:39:06] MinceR (MinceR!mincer@user/lightbringer): "Passw0rd!"
+[19:39:07] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex mincer. Try harder! Your new score is: 16995 (-100)
+[19:39:07] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -100 (-100)
+[19:39:09] lidless (lidless!lidless@about/hackers/lidless): what do you do as a hobby that allows you to parse regex in seconds?
+[19:39:16] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): !regex scores
+[19:39:16] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 16995  | | pythonuser (2): -100  | | hacker (3): -100  | | chair1 (4): -100  | | kzt (5): -199  | | msfvenom (6): -299  | | lidless (7): -400  | | jmp-2 (8): -450  |
+[19:39:25] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): hahahahahaha
+[19:39:25] MinceR (MinceR!mincer@user/lightbringer): i can't parse most regex that quickly, but these are all very similar to each other
+[19:39:27] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 0 (+100)
+[19:39:30] lidless (lidless!lidless@about/hackers/lidless): look at me, getting there on the carts so quickly
+[19:39:45] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![^aeiou]*[aeiou]{4})[a-z]{8,15}$`
+[19:40:05] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "aeiogfg"
+[19:40:05] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -399 (-100)
+[19:40:06] MinceR (MinceR!mincer@user/lightbringer): "swordfish"
+[19:40:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17095 (+100)
+[19:40:09] lidless (lidless!lidless@about/hackers/lidless): "aeiouaaiodaaaajdjjjjjj"
+[19:40:10] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): ROFL
+[19:40:30] lidless (lidless!lidless@about/hackers/lidless): the collective will of most of us
+[19:40:35] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): surprise
+[19:41:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -500 (-100)
+[19:41:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 100 (+100)
+[19:41:09] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): no way
+[19:41:15] MinceR (MinceR!mincer@user/lightbringer): there seems to be a bug in the timer feature :>
+[19:41:16] lidless (lidless!lidless@about/hackers/lidless): grats
+[19:41:35] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*([a-z])([a-z])\3\2)[a-z]{6,12}$`
+[19:41:38] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![b-df-hj-np-tv-z]{5})[a-z]{8,15}$`
+[19:41:42] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): woops
+[19:41:44] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:41:47] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): wow
+[19:41:48] lidless (lidless!lidless@about/hackers/lidless): "KilL!Trump@JK!JesusSaves"
+[19:41:49] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -600 (-100)
+[19:41:57] MinceR (MinceR!mincer@user/lightbringer): apparently PythonUser solved that challenge before it was printed
+[19:42:02] MinceR (MinceR!mincer@user/lightbringer): "password"
+[19:42:02] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17195 (+100)
+[19:42:11] lidless (lidless!lidless@about/hackers/lidless): python is on a far better connection
+[19:42:12] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): ´bruh
+[19:42:26] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): bro is premoving the answers
+[19:42:42] MinceR (MinceR!mincer@user/lightbringer): 1 gramm-bit?
+[19:42:42] lidless (lidless!lidless@about/hackers/lidless): nice
+[19:42:52] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): lol
+[19:42:52] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: 0 (-100)
+[19:42:54] lidless (lidless!lidless@about/hackers/lidless): as advanced as LA is, our internet options are the worst in the world I think
+[19:42:55] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})(?![b-df-hj-np-tv-z]{4})[a-z]{6,12}\b`
+[19:43:02] MinceR (MinceR!mincer@user/lightbringer): "lofasz"
+[19:43:02] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17295 (+100)
+[19:43:05] Lore (Lore!~Lore@user/Lore): meaty, commonly, nowadays, if we consider the ineffably magnificent PHP, Nginx is used for making an actual connection with the remote, in addition ti initial routing/filtering/caching/easing the very first load prior the actual busy logic as PHP, Node, Go, or whatever, and once passed the request data via CGI to the PHP-FPM (FastCGI Process Manager), which raises the required number of PHP workers,
+[19:43:07] Lore (Lore!~Lore@user/Lore): it listens for the response from the PHP process to return back.
+[19:43:15] lidless (lidless!lidless@about/hackers/lidless): "lofasz"
+[19:43:15] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats lidless! Your new score is: -500 (+100)
+[19:43:18] lidless (lidless!lidless@about/hackers/lidless): look at that.
+[19:43:27] MinceR (MinceR!mincer@user/lightbringer): that's probably the next one
+[19:43:29] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): =_=
+[19:43:33] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3,})(?!.*[A-Z]{4,})[a-zA-Z]{8,15}$`
+[19:43:36] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![b-df-hj-np-tv-z]{5})[a-z]{10,20}$`
+[19:43:37] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): there were two active at some point me thinks
+[19:43:43] MinceR (MinceR!mincer@user/lightbringer): "passwordfish"
+[19:43:43] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17395 (+100)
+[19:43:49] lidless (lidless!lidless@about/hackers/lidless): "passwordfish"
+[19:43:51] MinceR (MinceR!mincer@user/lightbringer): lots of strings exist that solve most of these
+[19:44:02] lidless (lidless!lidless@about/hackers/lidless): race condicion
+[19:44:24] MinceR (MinceR!mincer@user/lightbringer): i think it does things in the wrong order or something
+[19:44:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats lidless! Your new score is: -400 (+100)
+[19:44:40] MinceR (MinceR!mincer@user/lightbringer): i don't really feel like learning go so i can figure it out thought
+[19:44:42] lidless (lidless!lidless@about/hackers/lidless): is it threaded?
+[19:44:43] MinceR (MinceR!mincer@user/lightbringer): s/.$//
+[19:44:43] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): MinceR thinks lidless meant to say: is it threaded
+[19:44:46] MinceR (MinceR!mincer@user/lightbringer): i don't know
+[19:44:53] lidless (lidless!lidless@about/hackers/lidless): no I did not, droid
+[19:44:56] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): the bot has one brain cell only
+[19:45:00] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:45:04] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![^a]*a[^a]*a)[a-z]{5,15}$`
+[19:45:07] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*[aeiou]{4})[a-z]{5,12}$`
+[19:45:11] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[19:45:11] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17495 (+100)
+[19:45:13] Lore (Lore!~Lore@user/Lore): meaty, some, including myself, prefer Nginx over Apache due to the configuration syntax, ease of modules creation, straightforward file organization, so it's a marvelous choice, too!
+[19:45:14] lidless (lidless!lidless@about/hackers/lidless): "cunts"
+[19:45:20] lidless (lidless!lidless@about/hackers/lidless): 99% of the activity here is lovely bots
+[19:45:28] MinceR (MinceR!mincer@user/lightbringer): lovely spam, wonderful spam
+[19:45:35] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats lidless! Your new score is: -300 (+100)
+[19:45:58] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![A-Z]{3})[A-Za-z]{5,12}$`
+[19:46:04] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3,})(?!.*[0-9])[a-z]{5,15}$`
+[19:46:05] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -100 (-100)
+[19:46:08] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[19:46:08] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17595 (+100)
+[19:46:11] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): nice
+[19:46:12] lidless (lidless!lidless@about/hackers/lidless): "ColdWaterCyn"
+[19:46:38] lidless (lidless!lidless@about/hackers/lidless): I saw that!
+[19:46:38] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:46:56] meaty (meaty!~KVIrc@user/meaty): So PHP processing is not something "builtin" to nginx, then?
+[19:47:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -400 (-100)
+[19:47:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$`
+[19:47:10] Lore (Lore!~Lore@user/Lore): meaty, if we not consider the politically active design of the current Apache website UI, we may see PHP-FPM is of course possible with other solutions as Nginx, namely, https://cwiki.apache.org/confluence/display/httpd/PHP-FPM
+[19:47:13] lidless (lidless!lidless@about/hackers/lidless): "1' or 'a'='a';-- // to test validity of the omniverse being an actual onion"
+[19:47:14] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -500 (-100)
+[19:47:15] Elladan (Elladan!~elladan@user/elladan): meaty: The slop "blogs" are just AI ad spam you know. You should be able to find something written by person if you try
+[19:47:20] lidless (lidless!lidless@about/hackers/lidless): that sped up
+[19:47:25] Lore (Lore!~Lore@user/Lore): meaty, of course not.
+[19:47:28] MinceR (MinceR!mincer@user/lightbringer): "Sw0rdfish!"
+[19:47:28] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17695 (+100)
+[19:47:42] Lore (Lore!~Lore@user/Lore): Nginx and PHP are not related but common, since they work like a charm, and has always been.
+[19:47:50] Lore (Lore!~Lore@user/Lore): It's just a popular setup.
+[19:47:52] MinceR (MinceR!mincer@user/lightbringer): that would have worked as well
+[19:47:56] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 0 (+100)
+[19:48:34] lidless (lidless!lidless@about/hackers/lidless): christ on a stick. is it that I think in abstract patterns? I can't think linearly
+[19:48:50] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![A-Z])[a-z]{5,15}$`
+[19:48:51] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): I can only think like a horse
+[19:48:53] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![A-Z]*$)[a-zA-Z]{5,12}$`
+[19:48:55] lidless (lidless!lidless@about/hackers/lidless): "ChristStick2!"
+[19:48:55] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -600 (-100)
+[19:48:59] MinceR (MinceR!mincer@user/lightbringer): "neigh"
+[19:48:59] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17795 (+100)
+[19:49:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?!.*(.)\1{2})[A-Za-z\d]{8,}$`
+[19:49:35] MinceR (MinceR!mincer@user/lightbringer): "Password1!"
+[19:49:35] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex mincer. Try harder! Your new score is: 17695 (-100)
+[19:49:40] lidless (lidless!lidless@about/hackers/lidless): "La18888888"
+[19:49:41] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -700 (-100)
+[19:49:44] MinceR (MinceR!mincer@user/lightbringer): "Password1"
+[19:49:44] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17795 (+100)
+[19:50:02] meaty (meaty!~KVIrc@user/meaty): Lore: So is what is detailed in the last section of https://nginx.org/en/docs/beginners_guide.html "setting up fastCGI proxying" the most basic way to do it?
+[19:50:07] MinceR (MinceR!mincer@user/lightbringer): i'll take a break then
+[19:50:30] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 100 (+100)
+[19:50:32] lidless (lidless!lidless@about/hackers/lidless): msfVenom I think your next flag should be one of these, to add some oomph
+[19:50:39] Lore (Lore!~Lore@user/Lore): meaty, e.g. The Internet <HTTP/TCP/UDP/...> Nginx <CGI> PHP-FPM <IPC> PHP,PHP,PHP,... (e.g. multiple processes of PHP, if required for heavy load).
+[19:50:52] lidless (lidless!lidless@about/hackers/lidless): yeah so you wouldn't have an issue
+[19:51:01] lidless (lidless!lidless@about/hackers/lidless): but getting to this part would only be the final step
+[19:51:20] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])([a-z])\3\2)[a-z]{5,12}$`
+[19:51:23] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{12,}$`
+[19:51:26] lidless (lidless!lidless@about/hackers/lidless): "Ta1penisA"
+[19:51:27] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -800 (-100)
+[19:51:29] lidless (lidless!lidless@about/hackers/lidless): "Ta1penisA"
+[19:51:29] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -900 (-100)
+[19:51:30] lidless (lidless!lidless@about/hackers/lidless): "Ta1penisA"
+[19:51:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1000 (-100)
+[19:51:34] lidless (lidless!lidless@about/hackers/lidless): gooood...
+[19:51:52] lidless (lidless!lidless@about/hackers/lidless): "Password!"
+[19:51:52] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1100 (-100)
+[19:51:53] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: 0 (-100)
+[19:52:03] lidless (lidless!lidless@about/hackers/lidless): "SkuzZy"
+[19:52:03] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1200 (-100)
+[19:52:11] lidless (lidless!lidless@about/hackers/lidless): it sent 2 though
+[19:52:13] Lore (Lore!~Lore@user/Lore): meaty, indeed, FastCGI is a version of CGI, or a communication protocol that was historically chosen as one of the input for the PHP executable.
+[19:52:15] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -100 (-100)
+[19:52:17] MinceR (MinceR!mincer@user/lightbringer): these are not long enough :>
+[19:52:34] lidless (lidless!lidless@about/hackers/lidless): "Aaaaaaaaaaa1"
+[19:52:34] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1300 (-100)
+[19:52:37] Lore (Lore!~Lore@user/Lore): I.e. https://en.wikipedia.org/wiki/Common_Gateway_Interface
+[19:52:38] lidless (lidless!lidless@about/hackers/lidless): no I'm right
+[19:52:43] MinceR (MinceR!mincer@user/lightbringer): [A-Za-z\d!@#$%^&*]{12,} needs at least 12 characters
+[19:52:45] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): now that MinceR is taking a break, people will compete for the bottom of the ranking
+[19:52:49] lidless (lidless!lidless@about/hackers/lidless): "aaTa1penisA"
+[19:52:49] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1400 (-100)
+[19:52:51] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:53:02] lidless (lidless!lidless@about/hackers/lidless): na I've got that covered
+[19:53:28] lidless (lidless!lidless@about/hackers/lidless): "<imgPropans"
+[19:53:28] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1500 (-100)
+[19:53:29] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): I think your tactic is to achieve the lowest score, then overflow and snag the 1st place
+[19:53:31] MinceR (MinceR!mincer@user/lightbringer): also, (?![a-z]*([a-z])([a-z])\3\2) is going to reject the string if there are too many repeated letters
+[19:53:37] n1bble (n1bble!~n1bble@user/n1bble): Elladan never had an ad in my dreams, but I certainly did dream about a workplace lol
+[19:53:40] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 0 (+100)
+[19:53:45] lidless (lidless!lidless@about/hackers/lidless): it is :) Much easier to sink the the bottom. especially if rich
+[19:53:50] lidless (lidless!lidless@about/hackers/lidless): which.. I'm not
+[19:54:07] n1bble (n1bble!~n1bble@user/n1bble): I've also dreamed about being a computer program
+[19:54:11] lidless (lidless!lidless@about/hackers/lidless): I'm playing SWTOR on steam deck rn which is hard enough
+[19:54:13] Lore (Lore!~Lore@user/Lore): Here, you may see, there's one PHP executable (php-cli) for CLI (command line interface) and another, php-cgi - for CGI (common gateway interface).
+[19:54:40] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z]{3})[A-Za-z]{8,15}$`
+[19:54:45] lidless (lidless!lidless@about/hackers/lidless): !regex scores
+[19:54:45] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 17795  | | pythonuser (2): 0  | | hacker (3): -100  | | chair1 (4): -100  | | kzt (5): -199  | | msfvenom (6): -399  | | jmp-2 (7): -450  | | lidless (8): -1500  |
+[19:54:55] lidless (lidless!lidless@about/hackers/lidless): PythonUser yes you do!I Love it. it's freaking linux
+[19:55:12] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 100 (+100)
+[19:55:35] lidless (lidless!lidless@about/hackers/lidless): ah I think I'm seeing a pattern "TING"
+[19:55:43] MinceR (MinceR!mincer@user/lightbringer): :>
+[19:55:59] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{10,20}$`
+[19:56:11] lidless (lidless!lidless@about/hackers/lidless): "JDKLAhjdjdjdjdjdjdjdj!"
+[19:56:11] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1600 (-100)
+[19:56:15] lidless (lidless!lidless@about/hackers/lidless): oh fuck you
+[19:56:20] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:56:23] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: 0 (-100)
+[19:56:37] lidless (lidless!lidless@about/hackers/lidless): "KDKDKDKDK1DKDKDKDKDKDKD"
+[19:56:37] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1700 (-100)
+[19:56:41] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -100 (-100)
+[19:57:02] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 0 (+100)
+[19:57:07] MinceR (MinceR!mincer@user/lightbringer): (?=.*[aeiou]) means it has to have a vowel
+[19:57:18] lidless (lidless!lidless@about/hackers/lidless): unlike darts, this skill does not improve with drinking
+[19:57:22] MinceR (MinceR!mincer@user/lightbringer): lol
+[19:57:23] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?!.*(.)\1{2})[A-Za-z\d]{8,}$`
+[19:57:31] MinceR (MinceR!mincer@user/lightbringer): are you sure darts skill improves with drinking?
+[19:57:35] lidless (lidless!lidless@about/hackers/lidless): "P@asssw1"
+[19:57:35] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): what about ballmer peak
+[19:57:35] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1800 (-100)
+[19:57:41] MinceR (MinceR!mincer@user/lightbringer): that's a stupid idea
+[19:57:42] lidless (lidless!lidless@about/hackers/lidless): "balmer peak"
+[19:57:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -1900 (-100)
+[19:57:50] MinceR (MinceR!mincer@user/lightbringer): ballmer isn't even a coder
+[19:57:53] Lore (Lore!~Lore@user/Lore): meaty, though you might have just started, just please be careful, since even ineffably magnificent and lovely frameworks out there may have cases to be aware. For example, relatively recently, I have created a pull-request for Laravel and Nginx documentation regarding a security case: https://github.com/laravel/docs/pull/10053
+[19:57:55] uxfi (uxfi!~uxfi@user/uxfi): zippo^, BREAKING: Within the past 72 hours:
+[19:57:55] lidless (lidless!lidless@about/hackers/lidless): MinceR mine does. it's all in perception
+[19:57:57] uxfi (uxfi!~uxfi@user/uxfi): - Apple's AI Chief steps down
+[19:57:59] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 100 (+100)
+[19:57:59] uxfi (uxfi!~uxfi@user/uxfi): - Apple's Head of UI Design leaves to Meta
+[19:58:01] uxfi (uxfi!~uxfi@user/uxfi): - Apple's Policy Chief steps down
+[19:58:03] uxfi (uxfi!~uxfi@user/uxfi): - Apple's Head of General Counsel steps down
+[19:58:11] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): but he was a good extreme go horser
+[19:58:11] lidless (lidless!lidless@about/hackers/lidless): Why are all the answers so similar? ANSWER
+[19:58:21] lidless (lidless!lidless@about/hackers/lidless): who is ballmer?
+[19:58:40] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![A-Z])[a-z]{5,12}$`
+[19:58:43] lidless (lidless!lidless@about/hackers/lidless): "Password1"
+[19:58:43] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2000 (-100)
+[19:58:46] lidless (lidless!lidless@about/hackers/lidless): ....
+[19:58:53] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): lidless: https://www.youtube.com/watch?v=KMU0tzLwhbE
+[19:58:53] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): ^ 0,4 ► 1,0YouTube :: Developers :: Duration: 03:02 :: Views: 6,289,852 :: Uploader: 1doony4u :: Uploaded: 2006-01-25 :: 79,637 likes :: 21,901 comments
+[19:58:56] lidless (lidless!lidless@about/hackers/lidless): "Bitch@es"
+[19:58:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2100 (-100)
+[19:59:07] MinceR (MinceR!mincer@user/lightbringer): ballmer was the disgusting MICROS~1 CEO who jumped around like a monkey, drenched in sweat, screaming things like "I have four words for you: I, love, this, company, yeah!"
+[19:59:09] lidless (lidless!lidless@about/hackers/lidless): chair1 not craic!!
+[19:59:15] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 200 (+100)
+[19:59:24] MinceR (MinceR!mincer@user/lightbringer): and who threw a fit throwing chairs when he found out goolag's collecting more data on people than MICROS~1
+[19:59:26] Geronimo (Geronimo!~Geronimo@user/geronimo): and?
+[19:59:41] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): MinceR: isn't he connected to Linux halloween documents or something?
+[19:59:45] MinceR (MinceR!mincer@user/lightbringer): probably
+[19:59:46] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): internal memos against Linux
+[19:59:55] lidless (lidless!lidless@about/hackers/lidless): why is nsh no longer here
+[20:00:02] MinceR (MinceR!mincer@user/lightbringer): i think he was in charge of the redmond mafia when they tried those old methods of trying to destroy Linux
+[20:00:02] uxfi (uxfi!~uxfi@user/uxfi): sinking ship
+[20:00:11] MinceR (MinceR!mincer@user/lightbringer): later they've found much better methods that actually worked
+[20:00:17] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$`
+[20:00:26] Geronimo (Geronimo!~Geronimo@user/geronimo): what do those people even do?
+[20:00:32] MinceR (MinceR!mincer@user/lightbringer): one was corruption (via the "Linux Foundation"), the other was corporate SJW troll hordes
+[20:00:35] lidless (lidless!lidless@about/hackers/lidless): that guy's head makes my eyes hurt
+[20:00:48] lidless (lidless!lidless@about/hackers/lidless): wsl is the best thing to happen to windows imo
+[20:00:49] Lore (Lore!~Lore@user/Lore): And, there are genius developers at #nginx, #php, of course, too!
+[20:00:51] uxfi (uxfi!~uxfi@user/uxfi): well arent they high level at apple?
+[20:00:53] MinceR (MinceR!mincer@user/lightbringer): they have WSL probably because they wanted to support Android apps in windows phone
+[20:01:02] MinceR (MinceR!mincer@user/lightbringer): then windows phone didn't really happen
+[20:01:08] lidless (lidless!lidless@about/hackers/lidless): wasn't Gates always a fan of unix?
+[20:01:09] Geronimo (Geronimo!~Geronimo@user/geronimo): maybe they are cleaning the house
+[20:01:10] MinceR (MinceR!mincer@user/lightbringer): so they had a bunch of crap they didn't know what to do with
+[20:01:12] MinceR (MinceR!mincer@user/lightbringer): no
+[20:01:16] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): and now you have Windows on ARM 💀
+[20:01:22] lidless (lidless!lidless@about/hackers/lidless): he just thought DOS was such a better idea?
+[20:01:24] uxfi (uxfi!~uxfi@user/uxfi): or as someone said
+[20:01:37] lidless (lidless!lidless@about/hackers/lidless): no OS is less intuitive than DOS
+[20:01:40] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): Microsoft had a UNIX distro once, called Xenix
+[20:01:44] MinceR (MinceR!mincer@user/lightbringer): i'm not sure what he thought, other than that he should own the world and that documenting your code was for losers
+[20:01:47] meaty (meaty!~KVIrc@user/meaty): ok
+[20:01:49] Lore (Lore!~Lore@user/Lore): Incredibly genius, to be fair.
+[20:01:53] lidless (lidless!lidless@about/hackers/lidless): ah right. and minix was.. something else I guess
+[20:02:08] meaty (meaty!~KVIrc@user/meaty): right now im trying to get php-fpm to run
+[20:02:09] n1bble (n1bble!~n1bble@user/n1bble): so poetic
+[20:02:16] lidless (lidless!lidless@about/hackers/lidless): or winux? I forget. it never mattered
+[20:02:32] lidless (lidless!lidless@about/hackers/lidless): they probably did
+[20:02:34] MinceR (MinceR!mincer@user/lightbringer): MINIX is Andrew Tanenbaum's educational Unix system
+[20:02:43] MinceR (MinceR!mincer@user/lightbringer): with a (flawed) microkernel system, iirc
+[20:02:56] lidless (lidless!lidless@about/hackers/lidless): "Solar@is"
+[20:02:56] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2199 (-99)
+[20:02:59] Armand|X13s (Armand|X13s!~Armand@user/armand): I recall php being pretty trivial. O_o
+[20:03:00] MinceR (MinceR!mincer@user/lightbringer): it did end up in lots of PCs via Intel Management Engine though
+[20:03:04] Lore (Lore!~Lore@user/Lore): meaty, Nginx should run it for you, or do you mean building it from source for your hardware/host?
+[20:03:18] Armand|X13s (Armand|X13s!~Armand@user/armand): But I haven't touched that side of server support since 2018. :P
+[20:03:24] lidless (lidless!lidless@about/hackers/lidless): same
+[20:03:25] MinceR (MinceR!mincer@user/lightbringer): :>
+[20:03:30] lidless (lidless!lidless@about/hackers/lidless): "Pasword1"
+[20:03:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2298 (-99)
+[20:03:35] Lore (Lore!~Lore@user/Lore): Armand|X13s, it's one of the most permissive languages out there, indeed, but here it assumes you know what you do.
+[20:03:40] MinceR (MinceR!mincer@user/lightbringer): "Passw0rd!"
+[20:03:40] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17894 (+99)
+[20:03:43] lidless (lidless!lidless@about/hackers/lidless): "Pasword1++99"
+[20:03:45] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): I heard that theory. the most succesful kernel, because it was inside all cpus lol
+[20:03:51] MinceR (MinceR!mincer@user/lightbringer): well, not all cpus
+[20:03:59] MinceR (MinceR!mincer@user/lightbringer): it wasn't in AMD CPUs or ARM SoCs
+[20:04:27] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): well, you could think all CPUs that mattered at the time hihi
+[20:04:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: 100 (-100)
+[20:04:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats lidless! Your new score is: -2198 (+100)
+[20:04:34] Armand|X13s (Armand|X13s!~Armand@user/armand): Yeah, I did.. When I was working in webhosting.
+[20:04:40] meaty (meaty!~KVIrc@user/meaty): Lore: oh, it'll just call it? ok, lemme try that
+[20:04:51] lidless (lidless!lidless@about/hackers/lidless): oh go me
+[20:05:09] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![b-df-hj-np-tv-z]{4})[a-z]{8,15}$`
+[20:05:12] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![^a-z]*[a-z]{5})[a-z]{8,15}$`
+[20:05:13] lidless (lidless!lidless@about/hackers/lidless): "Pasword1++99"
+[20:05:15] Lore (Lore!~Lore@user/Lore): Armand|X13s, e.g. there's at least 12 short versions of reverse-shell for PHP only at https://www.revshells.com/
+[20:05:29] lidless (lidless!lidless@about/hackers/lidless): I keep descending. Virgil is waiting to explain more about my future.
+[20:05:37] MinceR (MinceR!mincer@user/lightbringer): lol
+[20:05:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: 0 (-100)
+[20:05:46] JMP-2 (JMP-2!~terabit@about/hackers/terabit): extra space lidless
+[20:05:59] lidless (lidless!lidless@about/hackers/lidless): there were 2 though
+[20:06:01] lidless (lidless!lidless@about/hackers/lidless): "Pasword1++99 "
+[20:06:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2298 (-100)
+[20:06:04] lidless (lidless!lidless@about/hackers/lidless): youuuu
+[20:06:24] lidless (lidless!lidless@about/hackers/lidless): if it isn't obvious, I'm not actually reading he regex
+[20:06:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -100 (-100)
+[20:06:49] lidless (lidless!lidless@about/hackers/lidless): "PAIPAIaaaaa"
+[20:06:49] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2398 (-100)
+[20:07:02] meaty (meaty!~KVIrc@user/meaty): mmm, no such luck. I think I need to get php-fpm running on port 9000
+[20:07:11] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -200 (-100)
+[20:07:17] lidless (lidless!lidless@about/hackers/lidless): "Password1"
+[20:07:18] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2498 (-100)
+[20:07:19] MinceR (MinceR!mincer@user/lightbringer): hi not actually reading he regex, i'm dad
+[20:07:23] deconfed (deconfed!~UserNick@user/deconfed): ret
+[20:07:36] deconfed (deconfed!~UserNick@user/deconfed): oops
+[20:07:39] lidless (lidless!lidless@about/hackers/lidless): I think my dad would be better. but he's dead so no joinsies from dad
+[20:07:42] Armand|X13s (Armand|X13s!~Armand@user/armand): Lore, not sure why I'd need to know that, but... weird flex. :P
+[20:07:43] MinceR (MinceR!mincer@user/lightbringer): coding assembly? :>
+[20:08:11] lidless (lidless!lidless@about/hackers/lidless): I could code ASM with much more accuracy than this lol
+[20:08:22] MinceR (MinceR!mincer@user/lightbringer): :>
+[20:08:25] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): lidless: do you speak portuguese?
+[20:08:32] MinceR (MinceR!mincer@user/lightbringer): i was referring to the "ret" line
+[20:08:45] lidless (lidless!lidless@about/hackers/lidless): chair1 like 2 words. I know english, spanish, russian, and some german
+[20:08:51] lidless (lidless!lidless@about/hackers/lidless): oh and some welsh
+[20:08:55] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): ah
+[20:08:59] Lore (Lore!~Lore@user/Lore): It's not about "flexing" but an indication of built-in options to choose from.
+[20:09:16] lidless (lidless!lidless@about/hackers/lidless): is that portuguese?
+[20:09:41] lidless (lidless!lidless@about/hackers/lidless): I don't know sabes lol. just whatever I learned from my cubana ex esposa
+[20:10:00] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): sabias que los cigarros cubanos san rollados en las caderas de las mujeres
+[20:12:01] MinceR (MinceR!mincer@user/lightbringer): "password"
+[20:12:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex mincer. Try harder! Your new score is: 17796 (-98)
+[20:12:52] lidless (lidless!lidless@about/hackers/lidless): oh I had to look up a word. something about cuban cigars that women roll with their hips?
+[20:13:05] lidless (lidless!lidless@about/hackers/lidless): slainte
+[20:13:51] lidless (lidless!lidless@about/hackers/lidless): lol it is
+[20:14:04] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): I'm quoting an old animation hehe
+[20:14:13] lidless (lidless!lidless@about/hackers/lidless): was it Japanese?
+[20:14:32] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): no, canadian I think
+[20:14:58] lidless (lidless!lidless@about/hackers/lidless): I don't think Canadians are swelling up with pride on the account whatever that said lol
+[20:15:04] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): https://www.newgrounds.com/portal/view/35686
+[20:15:05] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): ^ Error retrieving title. Check the log for more details.
+[20:15:41] lidless (lidless!lidless@about/hackers/lidless): @bang
+[20:15:42] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): lidless: ❌ There was no duck! ❌ lidless: -2 (3109.77 seconds)
+[20:15:48] lidless (lidless!lidless@about/hackers/lidless): I am successful on all fronts
+[20:15:54] MinceR (MinceR!mincer@user/lightbringer): :)
+[20:17:13] lidless (lidless!lidless@about/hackers/lidless): we used to have a bot EmmyNoether that could translate :-/ or tell etymologies. she died apparently
+[20:17:44] cslr (cslr!~sol@159.26.108.105): Neuromancer brain analysis/visualization software: https://www.whiteclinic.net/files/neuromancer-v1.0-win64.zip
+[20:18:14] yegor (yegor!yegor@user/yegor): definitely the wrong channel
+[20:18:30] lidless (lidless!lidless@about/hackers/lidless): what language to you prefer?
+[20:19:18] lidless (lidless!lidless@about/hackers/lidless): nice. I'd like to learn C++ but have no practical applications
+[20:19:26] lidless (lidless!lidless@about/hackers/lidless): oh nice
+[20:19:32] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): lol
+[20:19:39] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): also, sus
+[20:19:56] lidless (lidless!lidless@about/hackers/lidless): I started with C and C++ never made sense to me. I guess because Ruby and Python were prettier for OOO
+[20:20:07] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): PythonUser - screenshot me!
+[20:20:09] lidless (lidless!lidless@about/hackers/lidless): haha I remember!  ON 1:JOINL:{ }
+[20:20:15] lidless (lidless!lidless@about/hackers/lidless): *JOIN
+[20:20:35] lidless (lidless!lidless@about/hackers/lidless): and then they made it 1:ON JOIN:  ? one way or the other
+[20:20:54] lidless (lidless!lidless@about/hackers/lidless): damn I'm recalling code from 1998
+[20:21:43] lidless (lidless!lidless@about/hackers/lidless): I think my first "program" was doing some l33t speak script in mIRC
+[20:21:49] MinceR (MinceR!mincer@user/lightbringer): :)
+[20:21:58] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): ./var &i = msfVenom(#,0)  { while (%i <= msfVenom($,0) { echo -a @bang msfVenom($,%i) | inc %i }  }
+[20:22:00] Lore (Lore!~Lore@user/Lore): meaty, apparently, there's none tutorial found, in almost 40 checked, out there for Nginx and PHP-FPM that uses `$realpath_root` instead of `$document_root`, like nothing... yet in the future, you may find it critical in production...
+[20:22:05] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): ./var &i = msfVenom(#,0)  { while (%i <= msfVenom($,0) { echo -a @bang msfVenom($,%i) | inc %i }  }
+[20:22:06] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): msl lol --> ./var &i = msfVenom(#,0)  { while (%i <= msfVenom($,0) { echo -a @bang msfVenom($,%i) | inc %i }  }
+[20:22:11] lidless (lidless!lidless@about/hackers/lidless): and there was that war script with Pinhead's voice. 7th sphere or something
+[20:22:26] Lore (Lore!~Lore@user/Lore): All the checked suggest the init-time variable as: fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+[20:22:38] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): PythonUser - screenshot me your irc client lol
+[20:22:47] lidless (lidless!lidless@about/hackers/lidless): msfVenom damn! I think that's actually more advanced than what I used
+[20:23:13] Lore (Lore!~Lore@user/Lore): Which is... not wrong but also not very correct in certain cases, where some may not realize the issue source once actually faced.
+[20:23:14] meaty (meaty!~KVIrc@user/meaty): Lore: that section from the php manual is perfect thank you
+[20:23:19] MinceR (MinceR!mincer@user/lightbringer): that just looks like cheating at ducks
+[20:23:20] lidless (lidless!lidless@about/hackers/lidless): I know I made some auto-kick thing for flooding but I also remember it being very Tcl like i[[[[then [[]]]]]]]]
+[20:23:42] lidless (lidless!lidless@about/hackers/lidless): s/i/if
+[20:23:42] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): lidless meant to say: I know I made some auto-kifck thing for flooding but I also remember it being very Tcl like i[[[[then [[]]]]]]]]
+[20:23:44] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): ^ 1 images :: 0 views :: not sure if safe for work
+[20:23:45] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[20:23:51] lidless (lidless!lidless@about/hackers/lidless): R2-D2 thank god you exist.
+[20:23:52] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): lidless: Error: "thank" is not a valid command.
+[20:24:24] lidless (lidless!lidless@about/hackers/lidless): that looks like irssi
+[20:24:45] lidless (lidless!lidless@about/hackers/lidless): is that C++ with curses?
+[20:24:49] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): PythonUser - awesome - hectic work
+[20:25:03] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): cool
+[20:25:39] Lore (Lore!~Lore@user/Lore): meaty, I have great bookmarks, but not in the personal and stable enough environment to connect and select from for you, at this moment, yet in the 40 checked above, I found at least on interesting enough modern supplementary, which has an example and some under-the-hoods comments, too: https://archidep.ch/course/512-nginx-php-fpm-deployment/
+[20:25:40] lidless (lidless!lidless@about/hackers/lidless): is this macos + X11? sorry
+[20:26:01] Lore (Lore!~Lore@user/Lore): I tried searching for non-containerized version mainly.
+[20:27:08] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,12}$`
+[20:27:17] lidless (lidless!lidless@about/hackers/lidless): that looked very curses until I notice the "send" button. Anyway noice
+[20:28:32] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "passw"
+[20:28:32] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats msfvenom! Your new score is: -299 (+100) 🎉
+[20:29:50] lidless (lidless!lidless@about/hackers/lidless): "AAAAAAAm nimums"
+[20:29:50] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats lidless! Your new score is: -2398 (+100) 🎉
+[20:29:55] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[20:29:57] lidless (lidless!lidless@about/hackers/lidless): oh look at me think
+[20:30:42] lidless (lidless!lidless@about/hackers/lidless): by the way I'm self deprecating so read that in a downward inflection
+[20:31:00] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,12}$`
+[20:31:11] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "aAadf"
+[20:31:12] lidless (lidless!lidless@about/hackers/lidless): "DJJDJDJDJd"
+[20:31:12] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -499 (-100)
+[20:31:18] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): ouch
+[20:31:18] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2498 (-100)
+[20:31:19] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[20:31:23] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): LOL
+[20:31:34] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17896 (+100) 🎉
+[20:31:37] lidless (lidless!lidless@about/hackers/lidless): ... cunts wins all the times
+[20:31:44] lidless (lidless!lidless@about/hackers/lidless): !regex scores
+[20:31:59] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): +v :D
+[20:32:07] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 17896  | | hacker (2): -100  | | chair1 (3): -100  | | kzt (4): -199  | | pythonuser (5): -200  | | jmp-2 (6): -450  | | msfvenom (7): -499  | | lidless (8): -2498  |
+[20:32:09] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![b-df-hj-np-tv-z]{5})[a-z]{10,20}$`
+[20:32:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex pythonuser. Try harder! Your new score is: -300 (-100)
+[20:32:26] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "ab-dtavhtjt"
+[20:32:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -599 (-100)
+[20:32:29] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[20:32:31] lidless (lidless!lidless@about/hackers/lidless): "Hdf-np111"
+[20:32:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex lidless. Try harder! Your new score is: -2598 (-100)
+[20:32:34] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): <-- learner
+[20:32:50] lidless (lidless!lidless@about/hackers/lidless): and they said we were eskimo brothers
+[20:34:02] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): 🌳🌳🌳 •*´¨`*•.¸¸.•*´¨`*•.¸¸.••*´¨`*•.¸¸ 🦆 QUACK!
+[20:34:04] JMP-2 (JMP-2!~terabit@about/hackers/terabit): "aeoaeoabcdefghijk"
+[20:34:04] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats jmp-2! Your new score is: -350 (+100) 🎉
+[20:34:06] lidless (lidless!lidless@about/hackers/lidless): @bang
+[20:34:06] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): lidless: 🦆✔️ | Score: -1 (5.81 seconds )
+[20:34:07] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): @bang
+[20:34:08] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): msfVenom: ❌ There was no duck! ❌ msfVenom: -2 (6.84 seconds)
+[20:34:12] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): @launched
+[20:34:14] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): msfVenom: ❗ There is no duck right now! Wait for one to be launched!
+[20:34:36] lidless (lidless!lidless@about/hackers/lidless): ok i'm out. ttyl
+[20:34:41] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?!.*(.)\1{2})(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,20}$`
+[20:34:42] MinceR (MinceR!mincer@user/lightbringer): o/
+[20:34:49] MinceR (MinceR!mincer@user/lightbringer): "Passw0rd!"
+[20:34:49] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 17996 (+100) 🎉
+[20:35:49] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,12}$`
+[20:35:57] MinceR (MinceR!mincer@user/lightbringer): "lofasz"
+[20:35:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 18096 (+100) 🎉
+[20:36:11] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*([a-z])(?:[a-z]*\2){2})[a-z]{5,15}$`
+[20:36:56] MinceR (MinceR!mincer@user/lightbringer): "lofasz"
+[20:36:56] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 18196 (+100) 🎉
+[20:37:45] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z]).*[a-z]{3,}.*\b(?:the|and|for|but|yet)\b.*$`
+[20:39:15] MinceR (MinceR!mincer@user/lightbringer): "but"
+[20:39:15] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex mincer. Try harder! Your new score is: 31843 (13647)
+[20:39:41] MinceR (MinceR!mincer@user/lightbringer): "but?but"
+[20:39:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 31943 (+100) 🎉
+[20:40:19] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?!.*(.)\1{2})(?=.*\d.*\d)[A-Za-z0-9]{10,}$`
+[20:40:56] MinceR (MinceR!mincer@user/lightbringer): "p4ssw0rdfisH"
+[20:40:56] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 32043 (+100) 🎉
+[20:41:04] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): Fuck them ducks
+[20:41:09] MinceR (MinceR!mincer@user/lightbringer): lol wut
+[20:41:29] MinceR (MinceR!mincer@user/lightbringer): !regex scores
+[20:41:46] MinceR (MinceR!mincer@user/lightbringer): !regex scores
+[20:41:46] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 32043  | | chair1 (2): -100  | | hacker (3): -100  | | kzt (4): -199  | | pythonuser (5): -300  | | jmp-2 (6): -350  | | msfvenom (7): -599  | | lidless (8): -2598  |
+[20:41:48] JMP-2 (JMP-2!~terabit@about/hackers/terabit): MinceR, wait for it to restart, because of your high score you were helping me beta test lol
+[20:41:54] MinceR (MinceR!mincer@user/lightbringer): :)
+[20:41:59] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])\2[a-z]*\2)[a-z]{5,12}$`
+[20:42:13] JMP-2 (JMP-2!~terabit@about/hackers/terabit): MinceR, try a bad attempt next and you'll see
+[20:42:22] MinceR (MinceR!mincer@user/lightbringer): "aaaaaaaaaaaaaaaaaaaaa"
+[20:42:22] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex mincer. Try harder! Your new score is: 8010 (-24033)
+[20:42:37] MinceR (MinceR!mincer@user/lightbringer): that's quite the penalty
+[20:42:42] MinceR (MinceR!mincer@user/lightbringer): "lofasz"
+[20:42:43] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8110 (+100) 🎉
+[20:43:00] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3})(?!.*[A-Z])^(?!.*\d)[a-z]{6,12}$`
+[20:43:06] JMP-2 (JMP-2!~terabit@about/hackers/terabit): yeah , that's a bug, it should 25% not 75
+[20:43:09] MinceR (MinceR!mincer@user/lightbringer): "password"
+[20:43:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8210 (+100) 🎉
+[20:43:11] MinceR (MinceR!mincer@user/lightbringer): :)
+[20:43:21] deconfed (deconfed!~UserNick@user/deconfed): 🫎
+[20:44:04] deconfed (deconfed!~UserNick@user/deconfed): 🦍🦍🐊
+[20:44:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z]{3})[A-Za-z]{5,12}\b`
+[20:44:26] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[20:44:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8310 (+100) 🎉
+[20:46:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,15}$`
+[20:46:51] JMP-2 (JMP-2!~terabit@about/hackers/terabit): so if you miss now it should be about -2k
+[20:47:22] JMP-2 (JMP-2!~terabit@about/hackers/terabit): up to 1000 the penalty is negative of how long it's been, above 1k you lose 25%
+[20:47:29] MinceR (MinceR!mincer@user/lightbringer): ic
+[20:47:34] MinceR (MinceR!mincer@user/lightbringer): sounds harsh
+[20:47:44] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[20:47:44] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8410 (+100) 🎉
+[20:47:54] JMP-2 (JMP-2!~terabit@about/hackers/terabit): that way it keeps things interesting, can't keep high scores without consistently good attempts
+[20:48:34] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})(?![^aeiou]*[aeiou]{3})[a-z]{5,12}\b`
+[20:48:39] JMP-2 (JMP-2!~terabit@about/hackers/terabit): maybe we can do the opposite as well, if you're below -1k a solve adds 25%
+[20:48:55] MinceR (MinceR!mincer@user/lightbringer): ¯\_(ツ)_/¯
+[20:49:18] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[20:49:18] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8510 (+100) 🎉
+[20:50:28] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![b-df-hj-np-tv-z]{5})[a-z]{10,20}$`
+[20:50:54] MinceR (MinceR!mincer@user/lightbringer): "passwordfish"
+[20:50:54] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8610 (+100) 🎉
+[20:52:00] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,20}$`
+[20:52:48] MinceR (MinceR!mincer@user/lightbringer): "Pissw0rd"
+[20:52:48] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex mincer. Try harder! Your new score is: 6458 (-2152)
+[20:53:22] MinceR (MinceR!mincer@user/lightbringer): "Pissw0rd_"
+[20:53:22] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 6558 (+100) 🎉
+[20:53:49] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$`
+[20:57:44] FunkyBob (FunkyBob!~curtis@vhost3.tinbrain.net): oh?
+[20:59:23] MinceR (MinceR!mincer@user/lightbringer): "Pissw0rd!"
+[20:59:23] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 6657 (+99) 🎉
+[20:59:29] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): BULLSHIT
+[20:59:34] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): half way through ffs
+[20:59:40] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): i thought you were dead
+[20:59:44] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): :p
+[20:59:48] FunkyBob (FunkyBob!~curtis@vhost3.tinbrain.net): oh
+[21:00:05] SnoopJ (SnoopJ!~snoopj@user/snoopj): `timedelta(minutes=-5)` has a repr of `datetime.timedelta(days=-1, seconds=86100)`
+[21:00:19] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,15}$`
+[21:00:29] MinceR (MinceR!mincer@user/lightbringer): lol
+[21:00:38] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "adsdsd4da"
+[21:00:38] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -699 (-100)
+[21:00:42] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "adsdsdda"
+[21:00:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -799 (-100)
+[21:00:48] SnoopJ (SnoopJ!~snoopj@user/snoopj): (which does work out to -300 seconds, but… yeesh)
+[21:00:50] MinceR (MinceR!mincer@user/lightbringer): "horsecock"
+[21:00:50] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 6757 (+100) 🎉
+[21:00:56] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[21:01:08] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![b-df-hj-np-tv-z]{5})[a-z]{8,15}$`
+[21:01:33] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): SnoopJ: wow, that's... something
+[21:01:43] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "a2b df z"
+[21:01:43] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -899 (-100)
+[21:03:02] MinceR (MinceR!mincer@user/lightbringer): "horsecock"
+[21:03:02] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 6857 (+100) 🎉
+[21:03:12] MacGyver (MacGyver!~macgyver@user/macgyver): Looks like it is this way because it's the only way to guarantee unique canonical representations.
+[21:03:16] MacGyver (MacGyver!~macgyver@user/macgyver): See https://docs.python.org/3/library/datetime.html#timedelta-objects
+[21:03:22] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3,})(?!.*[0-9]{2})[a-z0-9]{8,15}$`
+[21:03:26] MacGyver (MacGyver!~macgyver@user/macgyver): Only days is allowed to be negative.
+[21:04:46] MacGyver (MacGyver!~macgyver@user/macgyver): Technically you could shift it and require -1800 <= seconds < 1800 and do the same for microseconds, but that complicates the normalization logic unnecessarily, I'd think.
+[21:05:01] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "a2add88z04034"
+[21:05:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -999 (-100)
+[21:05:03] MinceR (MinceR!mincer@user/lightbringer): "horsecock"
+[21:05:03] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 6957 (+100) 🎉
+[21:05:11] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): back to the learners circle i think
+[21:05:48] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{10,20}$`
+[21:20:06] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): wb
+[21:20:46] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): do nothing, 3rd place
+[21:20:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[a-z])(?!.*(.)\1\1)(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,20}$`
+[21:21:03] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "horsecock
+[21:21:06] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "horsecock"
+[21:21:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -500 (-100)
+[21:21:13] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): DAMN
+[21:21:20] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): congrats on 3rd place chair1
+[21:21:28] MinceR (MinceR!mincer@user/lightbringer): lol
+[21:21:31] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): !regex scores
+[21:21:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 7557  | | hacker (2): -100  | | chair1 (3): -100  | | kzt (4): -199  | | pythonuser (5): -300  | | jmp-2 (6): -350  | | msfvenom (7): -500  | | lidless (8): -2598  |
+[21:21:34] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): lol
+[21:22:52] kzt (kzt!administra@about/hackers/kzt): "Passw0rd!"
+[21:22:52] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: -99 (+100) 🎉
+[21:23:01] kzt (kzt!administra@about/hackers/kzt): lol
+[21:23:52] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![A-Z])[a-z]{5,12}$`
+[21:23:55] FunkyBob (FunkyBob!~curtis@vhost3.tinbrain.net): tonight I will be baking high protein brownies :P
+[21:24:08] FunkyBob (FunkyBob!~curtis@vhost3.tinbrain.net): today... I'm working on understanding undocumented uncommented code :/
+[21:24:18] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): oh no 4th place now
+[21:24:28] kzt (kzt!administra@about/hackers/kzt): "perroa"
+[21:24:28] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 1 (+100) 🎉
+[21:25:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?=.*[a-z]{3,})(?!.*[0-9])[a-z]{5,12}$`
+[21:25:29] kzt (kzt!administra@about/hackers/kzt): "viento"
+[21:25:29] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 101 (+100) 🎉
+[21:26:09] kzt (kzt!administra@about/hackers/kzt): !regex scores
+[21:26:09] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 7557  | | kzt (2): 101  | | chair1 (3): -100  | | hacker (4): -100  | | pythonuser (5): -300  | | jmp-2 (6): -350  | | msfvenom (7): -500  | | lidless (8): -2598  |
+[21:26:12] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})^(?![A-Z]*$)[A-Za-z]{5,12}$`
+[21:26:25] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:26:25] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 7657 (+100) 🎉
+[21:26:35] kzt (kzt!administra@about/hackers/kzt): xd
+[21:26:38] kzt (kzt!administra@about/hackers/kzt): casi
+[21:26:47] chair1 (chair1!~chair1@2804:14d:7681:5ea7:81a0:d2ca:2f2e:df4): haha "hacker" was pushed back, but not me!
+[21:27:03] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "lolfasz"
+[21:27:08] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): whats this :p
+[21:27:14] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): watch this!
+[21:27:15] kzt (kzt!administra@about/hackers/kzt): ya estaba resuelto
+[21:27:19] kzt (kzt!administra@about/hackers/kzt): ups
+[21:27:20] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats msfvenom! Your new score is: -400 (+100) 🎉
+[21:27:25] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): :p
+[21:27:27] kzt (kzt!administra@about/hackers/kzt): aaaaa
+[21:27:49] kzt (kzt!administra@about/hackers/kzt): "vocales"
+[21:27:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![b-df-hj-np-tv-z]{5})[a-z]{8,15}$`
+[21:27:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex kzt. Try harder! Your new score is: 1 (-100)
+[21:28:00] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1\1)(?![^a-z]*[A-Z])(?<![aeiou])[a-z]{4,}(?<=[^aeiou])`
+[21:28:03] kzt (kzt!administra@about/hackers/kzt): fu
+[21:28:11] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:28:11] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 7757 (+100) 🎉
+[21:28:27] kzt (kzt!administra@about/hackers/kzt): MinceR: dont play
+[21:28:28] kzt (kzt!administra@about/hackers/kzt): jajaja
+[21:28:30] MinceR (MinceR!mincer@user/lightbringer): lol
+[21:28:51] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,15}$`
+[21:29:18] kzt (kzt!administra@about/hackers/kzt): "viento"
+[21:29:18] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 101 (+100) 🎉
+[21:29:19] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): I'm working on a presentation :/
+[21:29:35] SnoopJ (SnoopJ!~snoopj@user/snoopj): I'm chasing a confusing 116-second discrepancy in some timestamp handling code…
+[21:29:54] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: -200 (+100) 🎉
+[21:29:56] kzt (kzt!administra@about/hackers/kzt): viento = wind
+[21:30:02] SnoopJ (SnoopJ!~snoopj@user/snoopj): suspiciously round number, but too large to be a matter of leap seconds
+[21:30:12] kzt (kzt!administra@about/hackers/kzt): ok ;)
+[21:30:14] kzt (kzt!administra@about/hackers/kzt): good
+[21:30:32] MinceR (MinceR!mincer@user/lightbringer): lófasz = horsecock
+[21:30:32] kzt (kzt!administra@about/hackers/kzt): cuantas veces deja resolver? cada regex
+[21:30:37] SnoopJ (SnoopJ!~snoopj@user/snoopj): (and worse yet: the discrepancy only shows up in the test suite)
+[21:30:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![b-df-hj-np-tv-z]{5})[a-z]{8,12}$`
+[21:31:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})^(?=.*[a-z])(?!.*[0-9])[a-z]{5,12}$`
+[21:31:04] MinceR (MinceR!mincer@user/lightbringer): :)
+[21:31:06] phork (phork!~spork@user/phork): Hello
+[21:31:14] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:31:14] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 7857 (+100) 🎉
+[21:31:22] yegor (yegor!yegor@user/yegor): hey
+[21:31:26] phork (phork!~spork@user/phork): I just installed linux for the first time in a long long time.
+[21:31:50] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: -100 (+100) 🎉
+[21:31:54] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): Very nice.  Welcome back.
+[21:31:56] kzt (kzt!administra@about/hackers/kzt): "viento
+[21:31:58] deconfed (deconfed!~UserNick@user/deconfed): ебнуца
+[21:32:02] kzt (kzt!administra@about/hackers/kzt): "viento"
+[21:32:03] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z]).*[a-z]{2,}.*\b(?:[b-df-hj-np-tv-z]*[aeiou]){3}[b-df-hj-np-tv-z]*\b.*$`
+[21:32:03] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex kzt. Try harder! Your new score is: 1 (-100)
+[21:32:03] kzt (kzt!administra@about/hackers/kzt): zd
+[21:32:06] kzt (kzt!administra@about/hackers/kzt): psro
+[21:32:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3,})(?!.*[0-9])(?=.*[A-Z])(?=.*[^a-zA-Z0-9\s]).{12,}$`
+[21:32:36] deconfed (deconfed!~UserNick@user/deconfed): no cyrlillic please in this channel
+[21:32:40] kzt (kzt!administra@about/hackers/kzt): "MuSiCal*armonia"
+[21:32:41] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 101 (+100) 🎉
+[21:32:52] yegor (yegor!yegor@user/yegor): you just wrote that
+[21:33:03] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,12}$`
+[21:33:04] phork (phork!~spork@user/phork): Not sure if I care for the distro I chose, but I will use it for a bit and see if it wears on me.
+[21:33:07] yegor (yegor!yegor@user/yegor): sometimes i think half the russian language is composed of curse words
+[21:33:26] Elladan (Elladan!~elladan@user/elladan): phork: what distro?
+[21:33:29] kzt (kzt!administra@about/hackers/kzt): "viento"
+[21:33:30] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 201 (+100) 🎉
+[21:33:33] phork (phork!~spork@user/phork): Zorin
+[21:33:44] kzt (kzt!administra@about/hackers/kzt): xd
+[21:34:14] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 0 (+100) 🎉
+[21:34:20] kzt (kzt!administra@about/hackers/kzt): o
+[21:34:28] MinceR (MinceR!mincer@user/lightbringer): lol
+[21:34:28] SnoopJ (SnoopJ!~snoopj@user/snoopj): …well, I found it. I was comparing timestamps across two .whls with very similar contents, and I bet the two files inside them were modified 116 seconds apart from each other.
+[21:34:28] kzt (kzt!administra@about/hackers/kzt): yeap
+[21:34:30] kzt (kzt!administra@about/hackers/kzt): xd
+[21:34:37] kzt (kzt!administra@about/hackers/kzt): hahahah l33t xd
+[21:34:55] Elladan (Elladan!~elladan@user/elladan): That looked like mostly a reskin of Ubuntu going for looks
+[21:35:09] yegor (yegor!yegor@user/yegor): i think that might be the point
+[21:35:11] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*([a-z])([a-z])\3\2)[a-z]{5,12}$`
+[21:35:14] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3})(?!.*[0-9])[a-z]{5,12}$`
+[21:35:34] JMP-2 (JMP-2!~terabit@about/hackers/terabit): one man's bug is another man's feature lol
+[21:35:42] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:35:43] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 7957 (+100) 🎉
+[21:35:48] kzt (kzt!administra@about/hackers/kzt): "perla"
+[21:35:50] JMP-2 (JMP-2!~terabit@about/hackers/terabit): you can solve it without seeing the regex, but you can also miss if you do that
+[21:36:14] MinceR (MinceR!mincer@user/lightbringer): yeah, but often it wasn't intended that way, it was just a guess that was ninja'd by someone else
+[21:36:14] virtualsid (virtualsid!~virtual@user/virtualsid): am I mistaken in thinking 'except requests.exceptions.HTTPError as e:' will capture 4xx errors (such as 403)?
+[21:36:15] Elladan (Elladan!~elladan@user/elladan): Ubuntu always seems really ugly to me these days so..
+[21:36:29] MinceR (MinceR!mincer@user/lightbringer): also, the score list often seems to be held up by the timer
+[21:36:47] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats pythonuser! Your new score is: 100 (+100) 🎉
+[21:36:56] kzt (kzt!administra@about/hackers/kzt): eu
+[21:36:59] kzt (kzt!administra@about/hackers/kzt): y mi perla
+[21:37:01] kzt (kzt!administra@about/hackers/kzt): xd
+[21:37:04] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 301 (+100) 🎉
+[21:37:07] phork (phork!~spork@user/phork): It's a heavily modified version of gnome. Doesn't act like normal gnome at all
+[21:37:07] kzt (kzt!administra@about/hackers/kzt): thanks
+[21:37:10] kzt (kzt!administra@about/hackers/kzt): si si
+[21:37:12] kzt (kzt!administra@about/hackers/kzt): xd
+[21:37:14] JMP-2 (JMP-2!~terabit@about/hackers/terabit): yeah, the timer keeps blocking, it works right away with the timer , you can solve before the challenge too because it takes so long with the sleep/block
+[21:37:25] phork (phork!~spork@user/phork): And there are no gnome extensions or anything.
+[21:37:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,15}$`
+[21:37:31] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*([a-z])\2)[a-z]{6,12}$`
+[21:37:34] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![b-df-hj-np-tv-z]{5})[a-z]{10,20}$`
+[21:37:37] JMP-2 (JMP-2!~terabit@about/hackers/terabit): i can remove the sleep but i'm concerned it will be too spammy
+[21:37:43] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): virtualsid: I think it should have it, sure
+[21:37:51] MinceR (MinceR!mincer@user/lightbringer): "passwordfish"
+[21:37:52] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8057 (+100) 🎉
+[21:37:53] mefistofeles (mefistofeles!~mefistofe@user/mefistofeles): in the response status code
+[21:38:01] MinceR (MinceR!mincer@user/lightbringer): i think the sleep is a good idea, it just isn't organized right
+[21:38:01] kzt (kzt!administra@about/hackers/kzt): "perlacantora"
+[21:38:06] SnoopJ (SnoopJ!~snoopj@user/snoopj): virtualsid, it would also catch an `HTTPError` raised for 5xx, but I'm not sure without context if that would be a "mistake". And of course, this would only catch exceptions raised by `requests`, so hopefully this wraps something that's doing `response.raise_for_status()` or somesuch.
+[21:38:21] kzt (kzt!administra@about/hackers/kzt): words xd
+[21:38:21] virtualsid (virtualsid!~virtual@user/virtualsid): okay, I'll take another look. I want it to capture 4xx and 5xx errors, SnoopJ.
+[21:38:36] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 401 (+100) 🎉
+[21:38:45] phork (phork!~spork@user/phork): I have the pro version of zorin also, which comes with other layouts not available in the normal version.
+[21:38:51] virtualsid (virtualsid!~virtual@user/virtualsid): and no, it's just a try around a 'requests.post()'...
+[21:39:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})[a-z]{5,12}(?<!s)`
+[21:39:08] wigums (wigums!~wigums@user/wigums): pro version?
+[21:39:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[A-Z])(?!.*[0-9]{3})[A-Za-z0-9]{10,20}$`
+[21:39:12] yegor (yegor!yegor@user/yegor): i didn't realize that thing actually had a market
+[21:39:29] yegor (yegor!yegor@user/yegor): you may very well be the first person to pay for that
+[21:39:31] Elladan (Elladan!~elladan@user/elladan): I tried putting KDE on an Arch VM the other night and kinda like Plasma these days, maybe I'll switch
+[21:39:39] MinceR (MinceR!mincer@user/lightbringer): "Passwordfish"
+[21:39:39] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8157 (+100) 🎉
+[21:39:42] SnoopJ (SnoopJ!~snoopj@user/snoopj): virtualsid, `requests` does not raise by default, you get back a `Response` object with the status code embedded in it. It's common to write `response = requests.post(…); response.raise_for_status(); do_nonerror_stuff(response)`
+[21:39:47] kzt (kzt!administra@about/hackers/kzt): "RomAventura5"
+[21:39:56] virtualsid (virtualsid!~virtual@user/virtualsid): ah, thank you. How did I miss that...
+[21:40:00] phork (phork!~spork@user/phork): I don't mind donating to FOSS projects if I see some value in it.
+[21:40:14] kzt (kzt!administra@about/hackers/kzt): uhm
+[21:40:16] SnoopJ (SnoopJ!~snoopj@user/snoopj): or sometimes people check `response.ok`, but I prefer the `raise_for_status()` spelling personally because exceptions are handy control flow
+[21:40:18] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 501 (+100) 🎉
+[21:40:19] Elladan (Elladan!~elladan@user/elladan): Do you get professional support or something when it breaks?
+[21:40:20] wigums (wigums!~wigums@user/wigums): but you said you dont care for it
+[21:40:20] forbin (forbin!~han-solo@user/forbin): https://github.com/psf/requests/blob/main/src/requests/models.py#L1026
+[21:40:24] kzt (kzt!administra@about/hackers/kzt): ;)
+[21:40:46] system72 (system72!~system72@user/system72): my x220 came http://0x0.st/KtE9.jpg
+[21:40:57] MrPockets (MrPockets!~John@user/mrpockets): Hey folks, I'm trying to get ImageMagick to work with TIFF formats. I installed libtif, but magick -list format still doesn't show TIFFs
+[21:41:00] MrPockets (MrPockets!~John@user/mrpockets): any suggestions?
+[21:41:01] kzt (kzt!administra@about/hackers/kzt): !regex scores
+[21:41:16] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,12}$`
+[21:41:16] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 8157  | | kzt (2): 501  | | pythonuser (3): 100  | | hacker (4): -100  | | chair1 (5): -100  | | jmp-2 (6): -350  | | msfvenom (7): -400  | | lidless (8): -2598  |
+[21:41:19] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*[aeiou]{4})[a-z]{5,12}$`
+[21:41:22] phork (phork!~spork@user/phork): I had used Zorin in the past, before it looks like it does now. Back in maybe 2010 or so. That was enough for me to give them some money.
+[21:41:31] Elladan (Elladan!~elladan@user/elladan): system72: nice I think we have an x250 sitting on a shelf in the basement
+[21:41:32] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:41:33] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8257 (+100) 🎉
+[21:41:55] system72 (system72!~system72@user/system72): this tn panel sucks though, i need to get an ips one
+[21:42:16] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![^a]*a[^a]*a)[a-z]{5,15}$`
+[21:42:21] Elladan (Elladan!~elladan@user/elladan): MrPockets: what distro etc?
+[21:42:26] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:42:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8357 (+100) 🎉
+[21:42:44] JMP-2 (JMP-2!~terabit@about/hackers/terabit): race to 10k! lol
+[21:42:49] kzt (kzt!administra@about/hackers/kzt): xd
+[21:42:50] MinceR (MinceR!mincer@user/lightbringer): lol
+[21:42:55] phork (phork!~spork@user/phork): This is the layout I am using now https://assets.zorincdn.com/zorin.com/images/pro/layouts/18/compact.jpg
+[21:43:13] MrPockets (MrPockets!~John@user/mrpockets): Sorry. RHEL9
+[21:43:26] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?=.*[a-z]{3,})(?!.*[0-9])[a-z]{6,12}$`
+[21:43:32] yegor (yegor!yegor@user/yegor): imagemagick -list format on debian trixie shows tiff for me
+[21:43:35] forbin (forbin!~han-solo@user/forbin): https://requests.readthedocs.io/en/latest/_modules/requests/exceptions/ # looks handy as well
+[21:43:36] phork (phork!~spork@user/phork): These are the 10 layouts it comes with stock https://zorin.com/os/pro/
+[21:43:37] MinceR (MinceR!mincer@user/lightbringer): "lofasz"
+[21:43:37] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8457 (+100) 🎉
+[21:43:57] kzt (kzt!administra@about/hackers/kzt): "solido"
+[21:44:31] virtualsid (virtualsid!~virtual@user/virtualsid): thanks, forbin, but you'll note it doesn't say anything about response.raise_for_status() there.
+[21:44:35] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 601 (+100) 🎉
+[21:45:06] forbin (forbin!~han-solo@user/forbin): where ?
+[21:45:07] SnoopJ (SnoopJ!~snoopj@user/snoopj): virtualsid, note also that `raise_for_status()` doesn't treat redirects as exceptional cases. But when what you care about is turning any 4xx or 5xx into an exception, it's the idiomatic spelling.
+[21:45:26] MrPockets (MrPockets!~John@user/mrpockets): ya, mine doesn't.
+[21:45:30] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])(?!.*(.)\1{2})(?!.*(?:abc|123))[A-Za-z\d!@#$%^&*]{8,20}`
+[21:45:32] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1{2})[a-z]{5,12}(?<!ing|ed|ly)\b`
+[21:45:41] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:45:41] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8557 (+100) 🎉
+[21:45:44] virtualsid (virtualsid!~virtual@user/virtualsid): right, I'm not worried about redirects (At this stage at least :P)
+[21:45:54] kzt (kzt!administra@about/hackers/kzt): "pelota"
+[21:46:23] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 701 (+100) 🎉
+[21:46:34] yegor (yegor!yegor@user/yegor): that might be a compile-time thing..
+[21:47:10] MinceR (MinceR!mincer@user/lightbringer): rip
+[21:47:13] MrPockets (MrPockets!~John@user/mrpockets): hmmm. I did install this bad boy from source.
+[21:47:28] kzt (kzt!administra@about/hackers/kzt): *_x
+[21:47:38] yegor (yegor!yegor@user/yegor): they offer  ./configure --with-tiff=yes
+[21:47:57] HeadphoneJack (HeadphoneJack!~kfrench@user/kfrench): MrPockets: My Rocky9 Just Works(tm) with: convert pic1.png pic1.tiff
+[21:47:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,15}$`
+[21:48:09] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:48:09] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8657 (+100) 🎉
+[21:48:18] kzt (kzt!administra@about/hackers/kzt): "pelota"
+[21:48:21] JMP-2 (JMP-2!~terabit@about/hackers/terabit): back in the day, SkUzZy had a command that lets you run any os command in a vm lol
+[21:48:24] MinceR (MinceR!mincer@user/lightbringer): lol
+[21:48:27] MrPockets (MrPockets!~John@user/mrpockets): Well, balls.
+[21:48:28] kzt (kzt!administra@about/hackers/kzt): xd
+[21:48:29] virtualsid (virtualsid!~virtual@user/virtualsid): I'm still puzzled as how I missed raise_for_status(). It's right there, now I look more closely. https://docs.python-requests.org/en/latest/user/quickstart/#errors-and-exceptions
+[21:48:35] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 801 (+100) 🎉
+[21:48:38] yegor (yegor!yegor@user/yegor): lemme try
+[21:48:38] virtualsid (virtualsid!~virtual@user/virtualsid): thanks again, SnoopJ
+[21:48:49] JMP-2 (JMP-2!~terabit@about/hackers/terabit): "skuzzzy"
+[21:48:55] virtualsid (virtualsid!~virtual@user/virtualsid): now to work out why I'm getting a 403 :P
+[21:48:58] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z]*$)[A-Za-z]{8,15}$`
+[21:48:58] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex jmp-2. Try harder! Your new score is: -450 (-100)
+[21:49:01] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?!.*(.)\1{2})[A-Za-z\d]{8,20}$`
+[21:49:12] MinceR (MinceR!mincer@user/lightbringer): "Horsec0ck"
+[21:49:12] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8757 (+100) 🎉
+[21:49:13] yegor (yegor!yegor@user/yegor): yeah i just done tiffed a picture
+[21:49:27] JMP-2 (JMP-2!~terabit@about/hackers/terabit): nn
+[21:49:38] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])[a-z]*\2[a-z]*\2)[a-z]{5,12}$`
+[21:49:53] yegor (yegor!yegor@user/yegor): https://imagemagick.org/script/advanced-linux-installation.php#:~:text=yes-,TIFF%20%20%20%20%20%20%20%20%20%20%20%20%20%20--with-tiff=yes,yes,-result_windows_font_dir='none'
+[21:49:55] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:49:55] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8857 (+100) 🎉
+[21:50:04] kzt (kzt!administra@about/hackers/kzt): "feliz"
+[21:50:06] kzt (kzt!administra@about/hackers/kzt): cambie
+[21:50:11] MinceR (MinceR!mincer@user/lightbringer): feliz gravidad
+[21:50:14] kzt (kzt!administra@about/hackers/kzt): xd
+[21:50:15] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "lolfasz"
+[21:50:19] kzt (kzt!administra@about/hackers/kzt): jajajaja
+[21:50:24] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): point!
+[21:50:28] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 901 (+100) 🎉
+[21:50:32] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): oh nice
+[21:50:36] kzt (kzt!administra@about/hackers/kzt): ;)
+[21:50:37] yegor (yegor!yegor@user/yegor): i like the thingie where i can share a link with some text highlighted but it always makes the link too long
+[21:50:38] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats msfvenom! Your new score is: -300 (+100) 🎉
+[21:50:39] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): ;)
+[21:50:44] yegor (yegor!yegor@user/yegor): unfortunate
+[21:50:45] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): heh :p
+[21:50:48] kzt (kzt!administra@about/hackers/kzt): copy
+[21:50:50] kzt (kzt!administra@about/hackers/kzt): jajajaja
+[21:50:54] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): it works :p
+[21:51:01] kzt (kzt!administra@about/hackers/kzt): estaría bueno q no tome las mismas
+[21:51:02] phork (phork!~spork@user/phork): I just tried on Zorin and it shows tiff. This is basically Ubuntu 24.04.
+[21:51:06] kzt (kzt!administra@about/hackers/kzt): y que tengan q usar otras palabras
+[21:51:11] kzt (kzt!administra@about/hackers/kzt): en el mismo regex
+[21:51:15] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "lolfasz"
+[21:51:21] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])([a-z])\3\2)[a-z]{5,15}$`
+[21:51:21] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*[aeiou]{4})[a-z]{8,15}$`
+[21:51:21] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -400 (-100)
+[21:51:24] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`(?=.*[aeiou])(?!.*(.)\1\1)(?![^a]*a[^a]*a[^a]*a)[a-z]{5,15}\b`
+[21:51:36] yegor (yegor!yegor@user/yegor): i wouldn't be particularly surprized [sic] if the repo version would work fine for MrPockets
+[21:51:40] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "password213"
+[21:51:40] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:51:40] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -500 (-100)
+[21:51:40] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 8957 (+100) 🎉
+[21:51:51] kzt (kzt!administra@about/hackers/kzt): "sonido"
+[21:51:54] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "cunts"
+[21:51:56] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): LOL
+[21:52:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 1001 (+100) 🎉
+[21:53:02] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats msfvenom! Your new score is: -400 (+100) 🎉
+[21:53:03] MrPockets (MrPockets!~John@user/mrpockets): The latest repo version was 6.9.13.25, and I need 7.1
+[21:53:07] kzt (kzt!administra@about/hackers/kzt): brb
+[21:53:15] yegor (yegor!yegor@user/yegor): ah
+[21:53:17] kzt (kzt!administra@about/hackers/kzt): copycat
+[21:53:18] kzt (kzt!administra@about/hackers/kzt): xd
+[21:53:19] wigums (wigums!~wigums@user/wigums): rebuild it
+[21:53:20] kzt (kzt!administra@about/hackers/kzt): brb
+[21:53:25] wigums (wigums!~wigums@user/wigums): you should have packaged it
+[21:53:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![A-Z])[a-z]{5,12}$`
+[21:53:42] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?=.*[a-z]{3})(?!.*[0-9])[a-z]{5,12}$`
+[21:53:45] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1\1)(?![a-z]*([a-z])\2{2})[a-z]{5,15}$`
+[21:53:46] yegor (yegor!yegor@user/yegor): yeah rebuild it with the tiff config flag thingie
+[21:53:57] MinceR (MinceR!mincer@user/lightbringer): "cunts"
+[21:53:57] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 9057 (+100) 🎉
+[21:53:57] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): 🌳🌳🌳 •*´¨`*•.¸¸.•*´¨`*•.¸¸.••*´¨`*•.¸¸ 🦆 QUACK!
+[21:53:59] MinceR (MinceR!mincer@user/lightbringer): @bef
+[21:54:01] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): MinceR: 🦆❤️ MinceR, you gently befriended the duck! (+1 friendship point)
+[21:54:01] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): @bang
+[21:54:02] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): msfVenom: ❌ There was no duck! ❌ msfVenom: -3 (4.9 seconds)
+[21:54:05] MrPockets (MrPockets!~John@user/mrpockets): Sorry if I'm a total idiot, but do I need to remove it first?
+[21:54:05] kzt (kzt!administra@about/hackers/kzt): "mario"
+[21:54:10] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): FUCKI
+[21:54:11] MrPockets (MrPockets!~John@user/mrpockets): or can I just recompile it again?
+[21:54:11] wigums (wigums!~wigums@user/wigums): no
+[21:54:13] kzt (kzt!administra@about/hackers/kzt): jajajaja
+[21:54:14] yegor (yegor!yegor@user/yegor): probably make sure you have the dev version of the libtiff package, since i think there's a difference
+[21:54:17] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "lolfasz"
+[21:54:23] wigums (wigums!~wigums@user/wigums): it'll just overwrite the shit you got now
+[21:54:27] yegor (yegor!yegor@user/yegor): make usually removes stuff when you rebuild
+[21:54:27] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): !regex scores
+[21:54:36] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats kzt! Your new score is: 1101 (+100) 🎉
+[21:54:38] MinceR (MinceR!mincer@user/lightbringer): sucky sucky! five dorra!
+[21:54:42] phork (phork!~spork@user/phork): You need imagrmagick 6.9.1-4 for tiff
+[21:54:59] phork (phork!~spork@user/phork): https://imagemagick.org/script/formats.php
+[21:55:01] kzt (kzt!administra@about/hackers/kzt): xd
+[21:55:41] kzt (kzt!administra@about/hackers/kzt): i need coffe
+[21:55:41] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats msfvenom! Your new score is: -300 (+100) 🎉
+[21:55:51] kzt (kzt!administra@about/hackers/kzt): lol
+[21:55:57] yegor (yegor!yegor@user/yegor): they're building a later version so it should be good
+[21:56:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Top 10 Regex Scores for the past 30 days:  | mincer (1): 9057  | | kzt (2): 1101  | | pythonuser (3): 100  | | hacker (4): -100  | | chair1 (5): -100  | | msfvenom (6): -300  | | jmp-2 (7): -450  | | lidless (8): -2598  |
+[21:56:07] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[aeiou])(?!.*(.)\1{2})(?![a-z]*([a-z])(?:[a-z]*\2){2})[a-z]{5,15}$`
+[21:56:07] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$`
+[21:56:08] yegor (yegor!yegor@user/yegor): i don't see any claims of them removing tiff functionality
+[21:56:10] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex Challenge:`^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?!.*(.)\1\1)(?!.*(?:abc|xyz))[A-Za-z0-9@#$%^&+=]{8,20}$`
+[21:56:20] MinceR (MinceR!mincer@user/lightbringer): "Horsec0ck"
+[21:56:20] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Regex challenge solved! Congrats mincer! Your new score is: 9157 (+100) 🎉
+[07:54:28] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): fgarcia cool yes i have a perl udpate too lol - im sure we'll be back up in no time :)
+[07:54:45] fgarcia (fgarcia!~lei@user/fgarcia): oh, the computer i am running debian, there was something i didn't like with plasma. something was set up for PIM and it shows up every time i would log in. i'm not sure if it could be the kde database something so i will try switching to xfce for that one
+[07:55:48] fgarcia (fgarcia!~lei@user/fgarcia): but other than that kde has been alright. the usage when starting up was less than 800MB. i might have to see when i reboot again today as i could have opened something
+[07:57:06] fgarcia (fgarcia!~lei@user/fgarcia): i will try later this week
+[07:57:16] kzt (kzt!administra@about/hackers/kzt): i use xfce
+[07:58:02] fgarcia (fgarcia!~lei@user/fgarcia): there was a recentish thing that came out. xfce has good marks across the board but it might be old, i don't see plasma taking up gigabytes like what was reported
+[07:58:40] fgarcia (fgarcia!~lei@user/fgarcia): https://forum.endeavouros.com/t/linux-des-resource-usage-compared/70060
+[07:58:40] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): ^ Linux DE's resource usage compared - All WMs - EndeavourOS
+[07:59:52] fgarcia (fgarcia!~lei@user/fgarcia): i have been loving xfce on my installs. i never got to experience the Common desktop environment and i think this is close. every system i have tried packages xfce
+[08:00:15] kzt (kzt!administra@about/hackers/kzt): xfce and in antix icewm
+[08:01:19] kzt (kzt!administra@about/hackers/kzt): brb
+[08:01:44] fgarcia (fgarcia!~lei@user/fgarcia): one of my computers i messed with x, so i will get to try and see if 'xinit xfce' works. though xfce is my default so i could probably still keep doing 'startx'
+[08:07:34] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): News from bleepingcomputer: Pharma firm Inotiv discloses data breach after ransomware attack - https://www.bleepingcomputer.com/news/security/pharma-firm-inotiv-discloses-data-breach-after-ransomware-attack/
+[08:13:38] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): 🌳🌳🌳 •*´¨`*•.¸¸.•*´¨`*•.¸¸.••*´¨`*•.¸¸ 🦆 QUACK!
+[08:13:43] lucabtz (lucabtz!~lucabtz@user/lucabtz): @bang
+[08:13:44] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): @bang
+[08:13:44] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): lucabtz: 🦆✔️ | Score: 1 (6.42 seconds )
+[08:13:45] R2-D2 (R2-D2!~beep@user/spithash/bot/informix): msfVenom: ❌ There was no duck! ❌ msfVenom: -4 (7.51 seconds)
+[08:13:48] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): shot :p
+[08:13:56] lucabtz (lucabtz!~lucabtz@user/lucabtz): :P

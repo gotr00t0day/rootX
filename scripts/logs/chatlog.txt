@@ -1,0 +1,62 @@
+[08:31:29] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog codeninja
+[08:35:48] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog codeninja
+[08:36:36] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[08:40:06] msfVenom (msfVenom!~h4x0r@about/hackers/h4x0r): "lolfasz"
+[08:40:06] SkUzZy (SkUzZy!~Skuzzy@about/hackers/bot/Skuzzy): Bad regex msfvenom. Try harder! Your new score is: -1094 (5)
+[08:42:35] lucabtz (lucabtz!~lucabtz@user/lucabtz): i dont like regex
+[08:42:56] lucabtz (lucabtz!~lucabtz@user/lucabtz): though writing a program which solves it automatically would be fun
+[08:46:49] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[08:49:43] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[08:53:41] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[08:54:43] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:08:25] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:11:53] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:14:24] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:16:01] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:19:15] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:22:32] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !calctest
+[09:24:18] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:28:38] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:30:53] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:32:35] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:34:43] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:41:10] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:45:45] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:49:44] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:50:26] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:52:23] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:54:53] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog test
+[09:55:15] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:57:08] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:58:18] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[09:59:49] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:01:01] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:01:40] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:04:24] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:05:35] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:07:10] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:08:21] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:09:06] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:10:51] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:12:06] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:13:29] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:15:35] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog PDiddy57
+[10:35:46] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !info
+[10:36:37] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !version
+[10:38:38] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !version
+[10:44:09] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !info
+[10:44:33] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog letto
+[10:45:21] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog codeninja
+[10:46:17] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog
+[10:54:43] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[10:55:48] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[10:55:54] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[10:56:15] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spam
+[10:56:54] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[10:57:37] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[11:01:04] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[11:04:38] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !countdown
+[11:07:13] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spam
+[11:11:52] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !version
+[11:12:20] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !info
+[11:12:55] c0d3ninja (c0d3ninja!~c0d3ninja@user/c0d3Ninja): !spylog

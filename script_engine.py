@@ -8,7 +8,8 @@ EVENTS:
     on <EVENT>:<match>:<target>:{ commands }
     
     Events:
-        TEXT     - Triggered on text messages (on TEXT:*hello*:#:{ msg $chan Hi! })
+        TEXT     - Triggered on channel messages (on TEXT:*hello*:#:{ msg $chan Hi! })
+        MSG      - Triggered on private messages (on MSG:*hello*:?:{ msg $nick Hi! })
         ACTION   - Triggered on /me actions
         JOIN     - Triggered when someone joins (on JOIN:#channel:{ msg $chan Welcome $nick! })
         PART     - Triggered when someone leaves
@@ -35,6 +36,32 @@ ALIASES:
 VARIABLES:
     Local:  %var = value
     Global: %%var = value (persists across script reloads)
+
+LISTS (arrays):
+    Local:  @listname
+    Global: @@listname (persists across script reloads)
+    
+    Commands:
+        listadd @listname <value>        - Add item to list
+        listdel @listname <index|value>  - Remove item from list
+        listclear @listname              - Clear all items from list
+        listinsert @listname <index> <value> - Insert item at index
+    
+    Identifiers:
+        $list(@listname,N)              - Get item at index N
+        $list(@listname,count)          - Get number of items in list
+        $list(@listname,find,value)     - Find index of value (-1 if not found)
+        $list(@listname,exists,value)   - Check if value exists (True/False)
+    
+    For Loop (iterate over list):
+        for (%var in @listname) { commands }
+        
+        Example:
+            listadd @names Alice
+            listadd @names Bob
+            for (%person in @names) {
+                echo Hello %person
+            }
     
 IDENTIFIERS (read-only):
     Basic:
@@ -49,6 +76,13 @@ IDENTIFIERS (read-only):
         $time    - Current time (HH:MM:SS)
         $date    - Current date (YYYY-MM-DD)
         $version - Client version
+    
+    Hostmask:
+        $address - Full hostmask (nick!user@host)
+        $user    - Username portion (~username)
+        $host    - Hostname/IP address
+        $ip      - Extracted IP address from hostname
+                   (handles encoded IPs like c-73-244-70-171.isp.net → 73.244.70.171)
     
     String Functions:
         $len(text) - Length of text
@@ -92,6 +126,11 @@ IDENTIFIERS (read-only):
         $level - Current user's level
         $level(nick) - Get user's level (0 if not set)
         $islevel(nick,level) - Check if user has level >= specified (returns True/False)
+    
+    Network Functions:
+        $ip(hostname) - Extract IP from hostname or encoded format
+                        Examples: $ip(c-73-244-70-171.isp.net) → 73.244.70.171
+                                  $ip(73.244.70.171) → 73.244.70.171
 
 COMMANDS:
     IRC Commands:
@@ -110,6 +149,7 @@ COMMANDS:
         echo <message>             - Display message locally
         halt                       - Stop script execution
         return [value]             - Return from alias
+        sleep <seconds>            - Sleep for specified seconds (supports decimals)
         timer <name> <interval> <reps> { commands } - Create a timer
         timer <name> off           - Stop a timer
     
@@ -127,6 +167,7 @@ CONTROL FLOW:
     if (<condition>) { commands }
     if (<condition>) { commands } else { commands }
     while (<condition>) { commands }
+    for (%var in @listname) { commands }  - Iterate over list items
     
     Conditions:
         $var == value
@@ -147,9 +188,14 @@ EXAMPLE SCRIPT:
         msg $chan Welcome to the channel, $nick!
     }
     
-    ; Respond to !hello command
+    ; Respond to !hello command in channels
     on TEXT:!hello*:#:{
         msg $chan Hello $nick! You said: $1-
+    }
+    
+    ; Respond to private messages containing "help"
+    on MSG:*help*:?:{
+        msg $nick Hi! I can help you with that.
     }
     
     ; Custom command
@@ -253,6 +299,10 @@ class ScriptEngine:
         # Variables
         self.local_vars: Dict[str, str] = {}
         self.global_vars: Dict[str, str] = {}
+        
+        # Lists (arrays)
+        self.local_lists: Dict[str, List[str]] = {}
+        self.global_lists: Dict[str, List[str]] = {}
         
         # User levels system
         # Format: {nickname: level} where level is an integer
@@ -493,8 +543,14 @@ class ScriptEngine:
             if not line:
                 continue
             
-            # Substitute variables and identifiers
-            line = self._substitute_vars(line, context)
+            # For control structures (if/while/for), don't substitute the entire block yet
+            # Let the handlers process them so variables are substituted at execution time
+            is_control_structure = (line.startswith('if ') or line.startswith('if(') or
+                                   line.startswith('while ') or line.startswith('while(') or
+                                   line.startswith('for ') or line.startswith('for('))
+            
+            if not is_control_structure:
+                line = self._substitute_vars(line, context)
             
             # Execute the command
             self._execute_single_command(line, context, server, target)
@@ -504,20 +560,36 @@ class ScriptEngine:
         result = []
         current = ""
         brace_depth = 0
+        lines = commands.split('\n')
+        i = 0
         
-        for char in commands:
-            if char == '{':
-                brace_depth += 1
-                current += char
-            elif char == '}':
-                brace_depth -= 1
-                current += char
-            elif char == '\n' and brace_depth == 0:
-                if current.strip():
-                    result.append(current.strip())
-                current = ""
+        while i < len(lines):
+            line = lines[i]
+            
+            # Count braces in this line
+            for char in line:
+                if char == '{':
+                    brace_depth += 1
+                elif char == '}':
+                    brace_depth -= 1
+            
+            current += line
+            
+            # If we're at depth 0 after this line, check if next line is 'else'
+            if brace_depth == 0:
+                # Peek at next line to see if it's an else block
+                if i + 1 < len(lines) and lines[i + 1].strip().startswith('else'):
+                    # Keep going, don't split yet
+                    current += '\n'
+                else:
+                    # Split here
+                    if current.strip():
+                        result.append(current.strip())
+                    current = ""
             else:
-                current += char
+                current += '\n'
+            
+            i += 1
         
         if current.strip():
             result.append(current.strip())
@@ -535,6 +607,10 @@ class ScriptEngine:
             
             if line.startswith('while ') or line.startswith('while('):
                 self._handle_while(line, context, server, target)
+                return
+            
+            if line.startswith('for ') or line.startswith('for('):
+                self._handle_for(line, context, server, target)
                 return
             
             # Parse command and arguments
@@ -572,6 +648,8 @@ class ScriptEngine:
             elif cmd == 'return':
                 self.return_value = args
                 self.halt_execution = True
+            elif cmd == 'sleep':
+                self._cmd_sleep(args)
             elif cmd == 'set':
                 self._cmd_set(args, context)
             elif cmd == 'unset':
@@ -590,6 +668,14 @@ class ScriptEngine:
                 self._cmd_read(args)
             elif cmd == 'remove':
                 self._cmd_remove(args)
+            elif cmd == 'listadd':
+                self._cmd_listadd(args, context)
+            elif cmd == 'listdel':
+                self._cmd_listdel(args, context)
+            elif cmd == 'listclear':
+                self._cmd_listclear(args)
+            elif cmd == 'listinsert':
+                self._cmd_listinsert(args, context)
             else:
                 # Unknown command - might be a /command
                 if cmd.startswith('/'):
@@ -806,6 +892,119 @@ class ScriptEngine:
         except Exception as e:
             self._log_error(f"Error removing {filename}: {e}")
     
+    # ==================== List Commands ====================
+    
+    def _cmd_listadd(self, args: str, context: Dict[str, str]):
+        """Add an item to a list
+        Usage: listadd <@listname> <value>
+        Examples: 
+            listadd @mylist Hello
+            listadd @@globallist $nick
+        """
+        match = re.match(r'(@+)(\w+)\s+(.*)', args)
+        if not match:
+            self._log_error("Usage: listadd <@listname> <value>")
+            return
+        
+        prefix, name, value = match.groups()
+        value = self._substitute_vars(value, context)
+        
+        # Determine if global or local list
+        is_global = len(prefix) == 2  # @@ for global
+        
+        if is_global:
+            if name not in self.global_lists:
+                self.global_lists[name] = []
+            self.global_lists[name].append(value)
+        else:
+            if name not in self.local_lists:
+                self.local_lists[name] = []
+            self.local_lists[name].append(value)
+    
+    def _cmd_listdel(self, args: str, context: Dict[str, str]):
+        """Remove an item from a list by index or value
+        Usage: listdel <@listname> <index|value>
+        Examples:
+            listdel @mylist 0     (remove first item)
+            listdel @mylist Hello (remove item with value "Hello")
+        """
+        match = re.match(r'(@+)(\w+)\s+(.*)', args)
+        if not match:
+            self._log_error("Usage: listdel <@listname> <index|value>")
+            return
+        
+        prefix, name, item = match.groups()
+        item = self._substitute_vars(item, context).strip()
+        
+        is_global = len(prefix) == 2
+        target_lists = self.global_lists if is_global else self.local_lists
+        
+        if name not in target_lists:
+            return
+        
+        lst = target_lists[name]
+        
+        # Try to remove by index first
+        try:
+            index = int(item)
+            if 0 <= index < len(lst):
+                lst.pop(index)
+        except ValueError:
+            # Not an integer, try to remove by value
+            try:
+                lst.remove(item)
+            except ValueError:
+                pass  # Item not in list, silently ignore
+    
+    def _cmd_listclear(self, args: str):
+        """Clear all items from a list
+        Usage: listclear <@listname>
+        Examples:
+            listclear @mylist
+            listclear @@globallist
+        """
+        match = re.match(r'(@+)(\w+)', args.strip())
+        if not match:
+            self._log_error("Usage: listclear <@listname>")
+            return
+        
+        prefix, name = match.groups()
+        is_global = len(prefix) == 2
+        
+        if is_global:
+            if name in self.global_lists:
+                self.global_lists[name].clear()
+        else:
+            if name in self.local_lists:
+                self.local_lists[name].clear()
+    
+    def _cmd_listinsert(self, args: str, context: Dict[str, str]):
+        """Insert an item at a specific index in a list
+        Usage: listinsert <@listname> <index> <value>
+        Examples:
+            listinsert @mylist 0 First
+            listinsert @mylist 2 $nick
+        """
+        match = re.match(r'(@+)(\w+)\s+(\d+)\s+(.*)', args)
+        if not match:
+            self._log_error("Usage: listinsert <@listname> <index> <value>")
+            return
+        
+        prefix, name, index_str, value = match.groups()
+        index = int(index_str)
+        value = self._substitute_vars(value, context)
+        
+        is_global = len(prefix) == 2
+        target_lists = self.global_lists if is_global else self.local_lists
+        
+        if name not in target_lists:
+            target_lists[name] = []
+        
+        lst = target_lists[name]
+        # Clamp index to valid range
+        index = max(0, min(index, len(lst)))
+        lst.insert(index, value)
+    
     def _cmd_timer(self, args: str, context: Dict[str, str], server: str, target: str):
         """Create or manage a timer"""
         # timer <name> off - stop timer
@@ -856,35 +1055,159 @@ class ScriptEngine:
         
         timer.timer_id = self.irc_client.window.after(timer.interval, timer_callback)
     
+    def _cmd_sleep(self, args: str):
+        """Sleep for a specified number of seconds while keeping GUI responsive
+        Usage: sleep <seconds>
+        Example: sleep 2
+        """
+        import time
+        try:
+            seconds = float(args.strip())
+            end_time = time.time() + seconds
+            
+            # Block for the specified time, updating GUI periodically
+            # This allows messages to be sent and GUI to stay responsive
+            while time.time() < end_time:
+                # Process all pending GUI events
+                self.irc_client.window.update()
+                self.irc_client.window.update_idletasks()
+                # Small sleep to avoid 100% CPU usage
+                remaining = end_time - time.time()
+                if remaining > 0.1:
+                    time.sleep(0.1)
+                else:
+                    if remaining > 0:
+                        time.sleep(remaining)
+                    break
+                
+        except ValueError:
+            self._log_error(f"Sleep error: invalid duration '{args}'")
+    
     # ==================== Control Structures ====================
     
     def _handle_if(self, line: str, context: Dict[str, str], server: str, target: str):
         """Handle if/else statements"""
         # Parse: if (condition) { commands } else { commands }
-        match = re.match(r'if\s*\(([^)]+)\)\s*{\s*([\s\S]*?)\s*}(?:\s*else\s*{\s*([\s\S]*?)\s*})?', line)
-        if match:
-            condition, if_commands, else_commands = match.groups()
-            
-            if self._evaluate_condition(condition, context):
-                self.execute_commands(if_commands, context, server, target)
-            elif else_commands:
-                self.execute_commands(else_commands, context, server, target)
+        # Need to manually find matching braces due to nested structures
+        # Note: Don't substitute vars in the line yet - condition and commands will be handled separately
+        match = re.match(r'if\s*\(([^)]+)\)\s*{', line)
+        if not match:
+            return
+        
+        condition = match.group(1)
+        start_pos = match.end()
+        
+        # Find matching closing brace by counting brace depth
+        brace_count = 1
+        pos = start_pos
+        while pos < len(line) and brace_count > 0:
+            if line[pos] == '{':
+                brace_count += 1
+            elif line[pos] == '}':
+                brace_count -= 1
+            pos += 1
+        
+        if_commands = line[start_pos:pos-1].strip()
+        
+        # Check for else clause
+        else_commands = None
+        remaining = line[pos:].strip()
+        if remaining.startswith('else'):
+            else_match = re.match(r'else\s*{', remaining)
+            if else_match:
+                else_start = else_match.end()
+                brace_count = 1
+                pos = else_start
+                while pos < len(remaining) and brace_count > 0:
+                    if remaining[pos] == '{':
+                        brace_count += 1
+                    elif remaining[pos] == '}':
+                        brace_count -= 1
+                    pos += 1
+                else_commands = remaining[else_start:pos-1].strip()
+        
+        # Execute appropriate branch
+        if self._evaluate_condition(condition, context):
+            self.execute_commands(if_commands, context, server, target)
+        elif else_commands:
+            self.execute_commands(else_commands, context, server, target)
     
     def _handle_while(self, line: str, context: Dict[str, str], server: str, target: str):
         """Handle while loops"""
-        match = re.match(r'while\s*\(([^)]+)\)\s*{\s*([\s\S]*?)\s*}', line)
+        # Parse: while (condition) { commands }
+        # Need to manually find matching braces due to nested structures
+        match = re.match(r'while\s*\(([^)]+)\)\s*{', line)
+        if not match:
+            return
+        
+        condition = match.group(1)
+        start_pos = match.end()
+        
+        # Find matching closing brace by counting brace depth
+        brace_count = 1
+        pos = start_pos
+        while pos < len(line) and brace_count > 0:
+            if line[pos] == '{':
+                brace_count += 1
+            elif line[pos] == '}':
+                brace_count -= 1
+            pos += 1
+        
+        commands = line[start_pos:pos-1].strip()
+        
+        # Safety limit to prevent infinite loops
+        max_iterations = 1000
+        iterations = 0
+        
+        while self._evaluate_condition(condition, context) and iterations < max_iterations:
+            if self.halt_execution:
+                break
+            self.execute_commands(commands, context, server, target)
+            iterations += 1
+    
+    def _handle_for(self, line: str, context: Dict[str, str], server: str, target: str):
+        """Handle for loops to iterate over lists
+        Syntax: for (%var in @listname) { commands }
+                for (%var in @@globallist) { commands }
+        """
+        # First, substitute context variables like $text, $nick, but NOT the loop variable
+        # The loop variable will be substituted during each iteration
+        line_with_context = self._substitute_vars(line, context)
+        
+        match = re.match(r'for\s*\(\s*(%\w+)\s+in\s+(@+)(\w+)\s*\)\s*{\s*([\s\S]*?)\s*}', line_with_context)
         if match:
-            condition, commands = match.groups()
+            var_name, prefix, list_name, commands = match.groups()
+            var_name = var_name[1:]  # Remove the % prefix
             
-            # Safety limit to prevent infinite loops
-            max_iterations = 1000
-            iterations = 0
+            # Get the list
+            is_global = len(prefix) == 2
+            target_lists = self.global_lists if is_global else self.local_lists
             
-            while self._evaluate_condition(condition, context) and iterations < max_iterations:
-                if self.halt_execution:
+            if list_name not in target_lists:
+                return
+            
+            lst = target_lists[list_name]
+            
+            # Safety limit
+            max_iterations = min(len(lst), 10000)
+            
+            # Iterate over the list
+            for i, item in enumerate(lst):
+                if i >= max_iterations or self.halt_execution:
                     break
+                
+                # Set the loop variable in local vars
+                old_value = self.local_vars.get(var_name)
+                self.local_vars[var_name] = item
+                
+                # Execute commands - loop variable will be substituted from self.local_vars
                 self.execute_commands(commands, context, server, target)
-                iterations += 1
+                
+                # Restore old value if it existed, otherwise remove
+                if old_value is not None:
+                    self.local_vars[var_name] = old_value
+                elif var_name in self.local_vars:
+                    del self.local_vars[var_name]
     
     def _evaluate_condition(self, condition: str, context: Dict[str, str]) -> bool:
         """Evaluate a condition expression"""
@@ -946,7 +1269,34 @@ class ScriptEngine:
     
     def _substitute_vars(self, text: str, context: Dict[str, str]) -> str:
         """Substitute variables and identifiers in text"""
-        # Handle function-style identifiers first: $func(args)
+        # Substitute variables FIRST so they're available inside functions like $calc()
+        # BUT: Don't substitute variable names in 'set %var = value' patterns
+        
+        # Check if this is a set command - if so, only substitute the value part
+        set_match = re.match(r'^set\s+(%+\w+)\s*=\s*(.*)', text, re.IGNORECASE)
+        if set_match:
+            var_part = set_match.group(1)  # The %varname part
+            value_part = set_match.group(2)  # The value part
+            
+            # Only substitute variables in the value part
+            for name, value in self.global_vars.items():
+                value_part = value_part.replace(f'%%{name}', value)
+            for name, value in self.local_vars.items():
+                value_part = value_part.replace(f'%{name}', value)
+            
+            # Reconstruct the set command
+            text = f'set {var_part} = {value_part}'
+        else:
+            # Not a set command - substitute variables normally
+            # Handle global variables: %%varname
+            for name, value in self.global_vars.items():
+                text = text.replace(f'%%{name}', value)
+            
+            # Handle local variables: %varname
+            for name, value in self.local_vars.items():
+                text = text.replace(f'%{name}', value)
+        
+        # Handle function-style identifiers after variables are substituted
         text = re.sub(r'\$rand\((\d+)\)', lambda m: str(random.randint(0, int(m.group(1))-1)), text)
         text = re.sub(r'\$len\(([^)]*)\)', lambda m: str(len(self._substitute_vars(m.group(1), context))), text)
         text = re.sub(r'\$upper\(([^)]*)\)', lambda m: self._substitute_vars(m.group(1), context).upper(), text)
@@ -959,11 +1309,24 @@ class ScriptEngine:
         text = re.sub(r'\$level\(([^)]+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context), 0)), text)
         text = re.sub(r'\$islevel\(([^,]+),(\d+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context), 0) >= int(m.group(2))), text)
         
+        # IP extraction function
+        text = re.sub(r'\$ip\(([^)]+)\)', lambda m: self._extract_ip(self._substitute_vars(m.group(1), context)), text)
+        
         # File I/O functions
         text = re.sub(r'\$read\(([^,)]+)\)', lambda m: self._func_read(m.group(1).strip(), None, context), text)
         text = re.sub(r'\$read\(([^,)]+),\s*(\d+)\)', lambda m: self._func_read(m.group(1).strip(), int(m.group(2)), context), text)
         text = re.sub(r'\$exists\(([^)]+)\)', lambda m: str(self._func_exists(m.group(1).strip(), context)), text)
         text = re.sub(r'\$lines\(([^)]+)\)', lambda m: str(self._func_lines(m.group(1).strip(), context)), text)
+        
+        # List functions
+        # $list(@listname,N) - Get item at index N
+        text = re.sub(r'\$list\((@+)(\w+),\s*(\d+)\)', lambda m: self._func_list_get(m.group(1), m.group(2), int(m.group(3))), text)
+        # $list(@listname,count) - Get count of items
+        text = re.sub(r'\$list\((@+)(\w+),\s*count\)', lambda m: str(self._func_list_count(m.group(1), m.group(2))), text, flags=re.IGNORECASE)
+        # $list(@listname,find,value) - Find index of value
+        text = re.sub(r'\$list\((@+)(\w+),\s*find,\s*([^)]+)\)', lambda m: str(self._func_list_find(m.group(1), m.group(2), self._substitute_vars(m.group(3), context))), text, flags=re.IGNORECASE)
+        # $list(@listname,exists,value) - Check if value exists
+        text = re.sub(r'\$list\((@+)(\w+),\s*exists,\s*([^)]+)\)', lambda m: str(self._func_list_exists(m.group(1), m.group(2), self._substitute_vars(m.group(3), context))), text, flags=re.IGNORECASE)
         
         # String tokenization functions
         text = re.sub(r'\$gettok\(([^,]+),\s*(\d+),\s*(\d+)\)', lambda m: self._func_gettok(self._substitute_vars(m.group(1), context), int(m.group(2)), int(m.group(3))), text)
@@ -990,14 +1353,6 @@ class ScriptEngine:
         text = re.sub(r'\$strip\(([^)]+)\)', lambda m: self._func_strip(self._substitute_vars(m.group(1), context)), text)
         text = re.sub(r'\$reptok\(([^,]+),\s*([^,]+),\s*([^,]+),\s*(\d+)\)', lambda m: self._func_reptok(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), self._substitute_vars(m.group(3), context), int(m.group(4))), text)
         
-        # Handle global variables: %%varname
-        for name, value in self.global_vars.items():
-            text = text.replace(f'%%{name}', value)
-        
-        # Handle local variables: %varname
-        for name, value in self.local_vars.items():
-            text = text.replace(f'%{name}', value)
-        
         # Handle context identifiers
         text = text.replace('$nick', context.get('nick', ''))
         text = text.replace('$chan', context.get('chan', ''))
@@ -1005,6 +1360,16 @@ class ScriptEngine:
         text = text.replace('$text', context.get('text', ''))
         text = text.replace('$server', context.get('server', ''))
         text = text.replace('$me', context.get('me', ''))
+        
+        # Hostmask identifiers
+        text = text.replace('$address', context.get('address', ''))
+        text = text.replace('$user', context.get('user', ''))
+        text = text.replace('$host', context.get('host', ''))
+        
+        # IP extraction from hostmask
+        host = context.get('host', '')
+        ip_addr = self._extract_ip(host)
+        text = text.replace('$ip', ip_addr)
         
         # Special identifier: $level (without args) = level of $nick
         if '$level' in text and '$level(' not in text:
@@ -1040,6 +1405,40 @@ class ScriptEngine:
                 return self.irc_client.connections[server].get('nickname', '')
         except:
             pass
+        return ''
+    
+    def _extract_ip(self, hostname: str) -> str:
+        """Extract IP address from hostname
+        Handles various formats:
+        - Direct IP: 73.244.70.171
+        - Comcast-style: c-73-244-70-171.hsd1.fl.comcast.net
+        - Other encoded IPs in hostnames
+        """
+        if not hostname:
+            return ''
+        
+        # Check if it's already a plain IP address (contains only digits, dots, and possibly colons for IPv6)
+        if re.match(r'^[\d.:]+$', hostname):
+            return hostname
+        
+        # Try to extract IP from common ISP hostname patterns
+        # Comcast: c-73-244-70-171.hsd1.fl.comcast.net
+        # Pattern: dashes separating IP octets
+        dash_pattern = re.search(r'(\d+)-(\d+)-(\d+)-(\d+)', hostname)
+        if dash_pattern:
+            return f"{dash_pattern.group(1)}.{dash_pattern.group(2)}.{dash_pattern.group(3)}.{dash_pattern.group(4)}"
+        
+        # Some ISPs use underscores: host_73_244_70_171.isp.net
+        underscore_pattern = re.search(r'(\d+)_(\d+)_(\d+)_(\d+)', hostname)
+        if underscore_pattern:
+            return f"{underscore_pattern.group(1)}.{underscore_pattern.group(2)}.{underscore_pattern.group(3)}.{underscore_pattern.group(4)}"
+        
+        # Look for any IP-like pattern in the hostname (###.###.###.###)
+        ip_pattern = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', hostname)
+        if ip_pattern:
+            return ip_pattern.group(1)
+        
+        # No IP found, return empty
         return ''
     
     def _log_error(self, message: str):
@@ -1133,6 +1532,42 @@ class ScriptEngine:
                 return sum(1 for _ in f)
         except Exception as e:
             return 0
+    
+    # ==================== List Helper Functions ====================
+    
+    def _get_list(self, prefix: str, name: str) -> Optional[List[str]]:
+        """Get list by name (helper function)"""
+        is_global = len(prefix) == 2
+        target_lists = self.global_lists if is_global else self.local_lists
+        return target_lists.get(name, None)
+    
+    def _func_list_get(self, prefix: str, name: str, index: int) -> str:
+        """Get item from list at index - used by $list(@listname,N)"""
+        lst = self._get_list(prefix, name)
+        if lst and 0 <= index < len(lst):
+            return lst[index]
+        return ''
+    
+    def _func_list_count(self, prefix: str, name: str) -> int:
+        """Get count of items in list - used by $list(@listname,count)"""
+        lst = self._get_list(prefix, name)
+        return len(lst) if lst else 0
+    
+    def _func_list_find(self, prefix: str, name: str, value: str) -> int:
+        """Find index of value in list - used by $list(@listname,find,value)
+        Returns -1 if not found"""
+        lst = self._get_list(prefix, name)
+        if lst:
+            try:
+                return lst.index(value)
+            except ValueError:
+                return -1
+        return -1
+    
+    def _func_list_exists(self, prefix: str, name: str, value: str) -> bool:
+        """Check if value exists in list - used by $list(@listname,exists,value)"""
+        lst = self._get_list(prefix, name)
+        return value in lst if lst else False
     
     # ==================== String Tokenization Functions ====================
     
