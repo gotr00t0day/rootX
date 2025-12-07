@@ -1,12 +1,14 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, filedialog, colorchooser
 from datetime import datetime
 from colorama import Fore, Style
 import time
 import json
 import os
+import re
+import shutil
 from script_engine import ScriptEngine  # RootX scripting engine
 
 class ChannelWindow:
@@ -286,15 +288,21 @@ class ChannelWindow:
                 theme = self.irc_client.themes[theme_name]
                 # self.current_theme = theme_name # ChannelWindow doesn't need its own current_theme
                 
+                # Get font settings
+                font_family = self.irc_client.preferences.get('font_family', 'Courier')
+                font_size = self.irc_client.preferences.get('font_size', 12)
+                
                 # Apply background and foreground colors
                 self.chat_display.configure(
                     bg=theme['bg'],
-                    fg=theme['fg']
+                    fg=theme['fg'],
+                    font=(font_family, font_size)
                 )
                 
                 self.users_listbox.configure(
                     bg=theme['bg'],
-                    fg=theme['fg']
+                    fg=theme['fg'],
+                    font=(font_family, font_size)
                 )
                 
                 # Configure text tags with theme colors more efficiently
@@ -1065,7 +1073,41 @@ class PrivateWindow:
 
         # Add action color
         self.chat_display.tag_configure('action', foreground='yellow')
+        
+        # Apply initial theme
+        self.apply_theme(self.irc_client.preferences.get('theme', 'default'))
 
+    def apply_theme(self, theme_name):
+        """Apply the selected theme to the window"""
+        try:
+            if theme_name in self.irc_client.themes:
+                theme = self.irc_client.themes[theme_name]
+                
+                # Get font settings
+                font_family = self.irc_client.preferences.get('font_family', 'Courier')
+                font_size = self.irc_client.preferences.get('font_size', 12)
+                
+                # Apply background and foreground colors
+                self.chat_display.configure(
+                    bg=theme['bg'],
+                    fg=theme['fg'],
+                    font=(font_family, font_size)
+                )
+                
+                # Configure text tags with theme colors
+                tag_colors = {
+                    'timestamp': 'timestamp',
+                    'username': 'username',
+                    'my_username': 'my_username',
+                    'message': 'message',
+                    'action': 'action'
+                }
+                
+                for tag, color_key in tag_colors.items():
+                    if color_key in theme:
+                        self.chat_display.tag_configure(tag, foreground=theme[color_key])
+        except Exception as e:
+            print(f"Error applying theme to private window: {e}")
 
     def add_action(self, sender, action_text):
             timestamp = datetime.now().strftime("[%H:%M:%S]")
@@ -1172,6 +1214,7 @@ class PrivateWindow:
 
 class IRCClient:
     CONFIG_FILE = "network_config.json"
+    PREFERENCES_FILE = "preferences.json"
 
     def __init__(self, master, server=None, port=6667, nickname="PythonUser"):
         # Client version
@@ -1188,11 +1231,8 @@ class IRCClient:
         # Initialize status_display to None to prevent exceptions
         self.status_display = None
         
-        # Preferences dictionary
-        self.preferences = {
-            'theme': 'default',
-            'show_tabs': False  # Default to hidden tabs
-        }
+        # Load preferences from file or use defaults
+        self.preferences = self.load_preferences()
         
         # --- Define Themes dictionary here ---
         self.themes = {
@@ -1295,6 +1335,231 @@ class IRCClient:
                 'status': '#66ff66',
                 'error': '#ffff00',
                 'notice': '#99ff99'
+            },
+            "cyberpunk": {
+                'bg': '#0d1117',
+                'fg': '#ff006e',
+                'list_bg': '#161b22',
+                'list_fg': '#ff006e',
+                'select_bg': '#1f2937',
+                'timestamp': '#8338ec',
+                'join': '#06ffa5',
+                'part': '#ff006e',
+                'quit': '#ff006e',
+                'nick': '#8338ec',
+                'username': '#3a86ff',
+                'my_username': '#ff006e',
+                'message': '#f72585',
+                'kick': '#ff006e',
+                'action': '#fb5607',
+                'ban': '#ff006e',
+                'op': '#ffbe0b',
+                'deop': '#ff006e',
+                'voice': '#06ffa5',
+                'devoice': '#ff006e',
+                'status': '#3a86ff',
+                'error': '#fb5607',
+                'notice': '#8338ec'
+            },
+            "dracula": {
+                'bg': '#282a36',
+                'fg': '#f8f8f2',
+                'list_bg': '#21222c',
+                'list_fg': '#f8f8f2',
+                'select_bg': '#44475a',
+                'timestamp': '#6272a4',
+                'join': '#50fa7b',
+                'part': '#ff5555',
+                'quit': '#ff5555',
+                'nick': '#bd93f9',
+                'username': '#6272a4',
+                'my_username': '#ff79c6',
+                'message': '#f8f8f2',
+                'kick': '#ff5555',
+                'action': '#f1fa8c',
+                'ban': '#ff5555',
+                'op': '#ffb86c',
+                'deop': '#ff5555',
+                'voice': '#8be9fd',
+                'devoice': '#ff5555',
+                'status': '#8be9fd',
+                'error': '#ff5555',
+                'notice': '#bd93f9'
+            },
+            "nord": {
+                'bg': '#2e3440',
+                'fg': '#d8dee9',
+                'list_bg': '#3b4252',
+                'list_fg': '#d8dee9',
+                'select_bg': '#434c5e',
+                'timestamp': '#616e88',
+                'join': '#a3be8c',
+                'part': '#bf616a',
+                'quit': '#bf616a',
+                'nick': '#81a1c1',
+                'username': '#616e88',
+                'my_username': '#b48ead',
+                'message': '#d8dee9',
+                'kick': '#bf616a',
+                'action': '#ebcb8b',
+                'ban': '#bf616a',
+                'op': '#d08770',
+                'deop': '#bf616a',
+                'voice': '#88c0d0',
+                'devoice': '#bf616a',
+                'status': '#8fbcbb',
+                'error': '#bf616a',
+                'notice': '#5e81ac'
+            },
+            "monokai": {
+                'bg': '#272822',
+                'fg': '#f8f8f2',
+                'list_bg': '#1e1f1c',
+                'list_fg': '#f8f8f2',
+                'select_bg': '#49483e',
+                'timestamp': '#75715e',
+                'join': '#a6e22e',
+                'part': '#f92672',
+                'quit': '#f92672',
+                'nick': '#66d9ef',
+                'username': '#75715e',
+                'my_username': '#ae81ff',
+                'message': '#f8f8f2',
+                'kick': '#f92672',
+                'action': '#e6db74',
+                'ban': '#f92672',
+                'op': '#fd971f',
+                'deop': '#f92672',
+                'voice': '#a6e22e',
+                'devoice': '#f92672',
+                'status': '#66d9ef',
+                'error': '#f92672',
+                'notice': '#ae81ff'
+            },
+            "solarized": {
+                'bg': '#002b36',
+                'fg': '#839496',
+                'list_bg': '#073642',
+                'list_fg': '#839496',
+                'select_bg': '#586e75',
+                'timestamp': '#657b83',
+                'join': '#859900',
+                'part': '#dc322f',
+                'quit': '#dc322f',
+                'nick': '#268bd2',
+                'username': '#657b83',
+                'my_username': '#d33682',
+                'message': '#93a1a1',
+                'kick': '#dc322f',
+                'action': '#b58900',
+                'ban': '#dc322f',
+                'op': '#cb4b16',
+                'deop': '#dc322f',
+                'voice': '#2aa198',
+                'devoice': '#dc322f',
+                'status': '#2aa198',
+                'error': '#dc322f',
+                'notice': '#6c71c4'
+            },
+            "gruvbox": {
+                'bg': '#282828',
+                'fg': '#ebdbb2',
+                'list_bg': '#1d2021',
+                'list_fg': '#ebdbb2',
+                'select_bg': '#3c3836',
+                'timestamp': '#928374',
+                'join': '#98971a',
+                'part': '#cc241d',
+                'quit': '#cc241d',
+                'nick': '#458588',
+                'username': '#928374',
+                'my_username': '#b16286',
+                'message': '#ebdbb2',
+                'kick': '#cc241d',
+                'action': '#d79921',
+                'ban': '#cc241d',
+                'op': '#fe8019',
+                'deop': '#cc241d',
+                'voice': '#689d6a',
+                'devoice': '#cc241d',
+                'status': '#83a598',
+                'error': '#fb4934',
+                'notice': '#8ec07c'
+            },
+            "onedark": {
+                'bg': '#282c34',
+                'fg': '#abb2bf',
+                'list_bg': '#21252b',
+                'list_fg': '#abb2bf',
+                'select_bg': '#2c313c',
+                'timestamp': '#5c6370',
+                'join': '#98c379',
+                'part': '#e06c75',
+                'quit': '#e06c75',
+                'nick': '#61afef',
+                'username': '#5c6370',
+                'my_username': '#c678dd',
+                'message': '#abb2bf',
+                'kick': '#e06c75',
+                'action': '#e5c07b',
+                'ban': '#e06c75',
+                'op': '#d19a66',
+                'deop': '#e06c75',
+                'voice': '#56b6c2',
+                'devoice': '#e06c75',
+                'status': '#56b6c2',
+                'error': '#e06c75',
+                'notice': '#c678dd'
+            },
+            "tokyonight": {
+                'bg': '#1a1b26',
+                'fg': '#c0caf5',
+                'list_bg': '#16161e',
+                'list_fg': '#c0caf5',
+                'select_bg': '#2f3549',
+                'timestamp': '#565f89',
+                'join': '#9ece6a',
+                'part': '#f7768e',
+                'quit': '#f7768e',
+                'nick': '#7aa2f7',
+                'username': '#565f89',
+                'my_username': '#bb9af7',
+                'message': '#c0caf5',
+                'kick': '#f7768e',
+                'action': '#e0af68',
+                'ban': '#f7768e',
+                'op': '#ff9e64',
+                'deop': '#f7768e',
+                'voice': '#2ac3de',
+                'devoice': '#f7768e',
+                'status': '#7dcfff',
+                'error': '#f7768e',
+                'notice': '#9d7cd8'
+            },
+            "catppuccin": {
+                'bg': '#1e1e2e',
+                'fg': '#cdd6f4',
+                'list_bg': '#11111b',
+                'list_fg': '#cdd6f4',
+                'select_bg': '#313244',
+                'timestamp': '#6c7086',
+                'join': '#a6e3a1',
+                'part': '#f38ba8',
+                'quit': '#f38ba8',
+                'nick': '#89b4fa',
+                'username': '#6c7086',
+                'my_username': '#cba6f7',
+                'message': '#cdd6f4',
+                'kick': '#f38ba8',
+                'action': '#f9e2af',
+                'ban': '#f38ba8',
+                'op': '#fab387',
+                'deop': '#f38ba8',
+                'voice': '#94e2d5',
+                'devoice': '#f38ba8',
+                'status': '#74c7ec',
+                'error': '#f38ba8',
+                'notice': '#b4befe'
             }
         }
 
@@ -1317,7 +1582,10 @@ class IRCClient:
         # Pending connection attempts
         self.connection_attempts = {}
         self.reconnect_attempts = {}
-        self.max_reconnect_attempts = 3
+        self.max_reconnect_attempts = 5  # Increased to 5 attempts
+        self.auto_reconnect_enabled = True  # Enable auto-reconnect by default
+        self.manual_disconnect = set()  # Track servers that were manually disconnected
+        self.reconnect_in_progress = set()  # Track servers currently reconnecting
         
         # Pending operations
         self.pending_bans = {}  # Track pending ban operations by target_nick
@@ -1450,8 +1718,33 @@ class IRCClient:
         self.view_menu.add_command(label="Show/Hide Tabs", command=self.toggle_tabs)
         self.menu_bar.add_cascade(label="View", menu=self.view_menu)
         
+        # Scripts menu
+        self.scripts_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.scripts_menu.add_command(label="Script Manager", command=self.show_script_manager)
+        self.menu_bar.add_cascade(label="Scripts", menu=self.scripts_menu)
+        
+        # Services menu
+        self.services_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.services_menu.add_command(label="Services", command=self.show_services_window)
+        self.menu_bar.add_cascade(label="Services", menu=self.services_menu)
+        
+        # Theme menu
+        self.theme_menu = tk.Menu(self.menu_bar, tearoff=0)
+        for theme_name in self.themes.keys():
+            self.theme_menu.add_command(
+                label=theme_name.capitalize(),
+                command=lambda t=theme_name: self.apply_theme_to_all(t)
+            )
+        self.menu_bar.add_cascade(label="Theme", menu=self.theme_menu)
+        
         # Store channel list windows
         self.channel_list_windows = {}
+        
+        # Store script manager window reference
+        self.script_manager_window = None
+        
+        # Store services window reference
+        self.services_window = None
 
         # Create status bar
         self.status_bar = ttk.Label(self.window, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
@@ -1462,6 +1755,11 @@ class IRCClient:
         
         # Create status window first so we can show messages
         self.create_status_window()
+        
+        # Apply saved theme on startup
+        saved_theme = self.preferences.get('theme', 'default')
+        if saved_theme in self.themes:
+            self.apply_theme_to_all(saved_theme)
         
         # Initialize scripting engine after window is ready
         self.script_engine = ScriptEngine(self)
@@ -1745,10 +2043,41 @@ class IRCClient:
                     self.update_tree_selection(tab_id)
                     break
         
+    def load_preferences(self):
+        """Load preferences from file"""
+        default_preferences = {
+            'theme': 'default',
+            'show_tabs': False,
+            'font_family': 'Courier',
+            'font_size': 12
+        }
+        
+        if not os.path.exists(self.PREFERENCES_FILE):
+            return default_preferences
+        
+        try:
+            with open(self.PREFERENCES_FILE, 'r') as f:
+                saved_preferences = json.load(f)
+                # Merge with defaults to ensure all keys exist
+                preferences = default_preferences.copy()
+                preferences.update(saved_preferences)
+                return preferences
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error loading preferences: {e}. Using defaults.")
+            return default_preferences
+    
+    def save_preferences(self):
+        """Save preferences to file"""
+        try:
+            with open(self.PREFERENCES_FILE, 'w') as f:
+                json.dump(self.preferences, f, indent=4)
+        except IOError as e:
+            print(f"Error saving preferences: {e}")
+    
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
         self.preferences['theme'] = theme_name
-        # You could also save to a config file here if desired
+        self.save_preferences()
         
     def get_theme_preference(self):
         """Get saved theme preference"""
@@ -1978,19 +2307,40 @@ class IRCClient:
         pm_key = f"{server}:{username}"
         
         if pm_key not in self.private_windows:
+            # Get current theme for initial setup
+            current_theme_name = self.preferences.get('theme', 'default')
+            current_theme = self.themes.get(current_theme_name, self.themes['default'])
+            font_family = self.preferences.get('font_family', 'Courier')
+            font_size = self.preferences.get('font_size', 12)
+            
             # Create a new tab frame in the notebook
             pm_tab = ttk.Frame(self.notebook)
             
-            # Create chat display
+            # Create chat display - apply theme colors immediately
             chat_display = scrolledtext.ScrolledText(pm_tab, wrap=tk.WORD)
             chat_display.pack(fill=tk.BOTH, expand=True)
             
-            # Configure text tags
-            chat_display.tag_configure('timestamp', foreground='gray')
-            chat_display.tag_configure('username', foreground='gray')
-            chat_display.tag_configure('my_username', foreground='magenta')
-            chat_display.tag_configure('message', foreground='white')
-            chat_display.tag_configure('action', foreground='purple')
+            # Apply theme to the Text widget inside ScrolledText
+            if hasattr(chat_display, 'text'):
+                text_widget = chat_display.text
+            else:
+                text_widget = chat_display
+            
+            text_widget.configure(
+                bg=current_theme['bg'],
+                fg=current_theme['fg'],
+                font=(font_family, font_size),
+                insertbackground=current_theme['fg'],
+                selectbackground=current_theme.get('select_bg', '#333333'),
+                selectforeground=current_theme['fg']
+            )
+            
+            # Configure text tags with current theme colors
+            text_widget.tag_configure('timestamp', foreground=current_theme.get('timestamp', 'gray'))
+            text_widget.tag_configure('username', foreground=current_theme.get('username', 'gray'))
+            text_widget.tag_configure('my_username', foreground=current_theme.get('my_username', 'magenta'))
+            text_widget.tag_configure('message', foreground=current_theme.get('message', 'white'))
+            text_widget.tag_configure('action', foreground=current_theme.get('action', 'purple'))
             
             # Create input frame
             input_frame = ttk.Frame(pm_tab)
@@ -2031,6 +2381,11 @@ class IRCClient:
             
             # Store in private_windows dictionary
             self.private_windows[pm_key] = pm_info
+            
+            # Apply current theme to the new private window
+            current_theme = self.preferences.get('theme', 'default')
+            if current_theme in self.themes:
+                self.apply_theme_to_private_window(pm_key, current_theme)
             
             # Add to tree view
             self.add_pm_node(username, server)
@@ -2134,22 +2489,50 @@ class IRCClient:
         chat_frame = ttk.Frame(paned)
         paned.add(chat_frame, weight=3) # Chat area takes more space
 
-        # Chat display
+        # Get current theme for initial setup
+        current_theme_name = self.preferences.get('theme', 'default')
+        current_theme = self.themes.get(current_theme_name, self.themes['default'])
+        font_family = self.preferences.get('font_family', 'Courier')
+        font_size = self.preferences.get('font_size', 12)
+        
+        # Chat display - apply theme colors immediately
         chat_display = scrolledtext.ScrolledText(chat_frame, wrap=tk.WORD)
         chat_display.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        
+        # Apply theme to the Text widget inside ScrolledText
+        if hasattr(chat_display, 'text'):
+            text_widget = chat_display.text
+        else:
+            text_widget = chat_display
+        
+        text_widget.configure(
+            bg=current_theme['bg'],
+            fg=current_theme['fg'],
+            font=(font_family, font_size),
+            insertbackground=current_theme['fg'],
+            selectbackground=current_theme.get('select_bg', '#333333'),
+            selectforeground=current_theme['fg']
+        )
 
-        # Configure text tags (Add all necessary tags here)
-        chat_display.tag_configure('timestamp', foreground='gray')
-        chat_display.tag_configure('join', foreground='green')
-        chat_display.tag_configure('part', foreground='red')
-        chat_display.tag_configure('quit', foreground='red')
-        chat_display.tag_configure('nick', foreground='blue')
-        chat_display.tag_configure('username', foreground='gray')
-        chat_display.tag_configure('my_username', foreground='magenta')
-        chat_display.tag_configure('message', foreground='white')
-        chat_display.tag_configure('action', foreground='purple')
-        chat_display.tag_configure('status', foreground='cyan')
-        chat_display.tag_configure('error', foreground='orange')
+        # Configure text tags with current theme colors
+        text_widget.tag_configure('timestamp', foreground=current_theme.get('timestamp', 'gray'))
+        text_widget.tag_configure('join', foreground=current_theme.get('join', 'green'))
+        text_widget.tag_configure('part', foreground=current_theme.get('part', 'red'))
+        text_widget.tag_configure('quit', foreground=current_theme.get('quit', 'red'))
+        text_widget.tag_configure('nick', foreground=current_theme.get('nick', 'blue'))
+        text_widget.tag_configure('username', foreground=current_theme.get('username', 'gray'))
+        text_widget.tag_configure('my_username', foreground=current_theme.get('my_username', 'magenta'))
+        text_widget.tag_configure('message', foreground=current_theme.get('message', 'white'))
+        text_widget.tag_configure('action', foreground=current_theme.get('action', 'purple'))
+        text_widget.tag_configure('status', foreground=current_theme.get('status', 'cyan'))
+        text_widget.tag_configure('error', foreground=current_theme.get('error', 'orange'))
+        text_widget.tag_configure('notice', foreground=current_theme.get('notice', 'blue'))
+        text_widget.tag_configure('kick', foreground=current_theme.get('kick', 'red'))
+        text_widget.tag_configure('ban', foreground=current_theme.get('ban', 'red'))
+        text_widget.tag_configure('op', foreground=current_theme.get('op', 'yellow'))
+        text_widget.tag_configure('deop', foreground=current_theme.get('deop', 'red'))
+        text_widget.tag_configure('voice', foreground=current_theme.get('voice', 'yellow'))
+        text_widget.tag_configure('devoice', foreground=current_theme.get('devoice', 'red'))
 
 
         # Input area (at the bottom of the chat frame)
@@ -2185,11 +2568,16 @@ class IRCClient:
         users_horizontal_scrollbar = ttk.Scrollbar(users_list_frame, orient=tk.HORIZONTAL)
         users_horizontal_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        # Listbox
+        # Listbox - apply theme colors immediately
         users_listbox = tk.Listbox(users_list_frame,
                                  yscrollcommand=users_scrollbar.set,
                                  xscrollcommand=users_horizontal_scrollbar.set,
-                                 activestyle='none') # Optional: better selection look
+                                 activestyle='none',
+                                 bg=current_theme.get('list_bg', current_theme['bg']),
+                                 fg=current_theme.get('list_fg', current_theme['fg']),
+                                 selectbackground=current_theme.get('select_bg', '#333333'),
+                                 selectforeground=current_theme.get('list_fg', current_theme['fg']),
+                                 font=(font_family, font_size))
         users_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Configure scrollbars
@@ -2243,6 +2631,11 @@ class IRCClient:
 
         # Display join message
         self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
+
+        # Apply current theme to the new channel window
+        current_theme = self.preferences.get('theme', 'default')
+        if current_theme in self.themes:
+            self.apply_theme_to_channel(channel_key, current_theme)
 
         # Activate the new tab
         self.select_tab(channel_key)
@@ -2387,15 +2780,43 @@ class IRCClient:
         # Make window non-resizable
         about_window.resizable(False, False)
         
+        # Force dark black theme (same as Script Manager and Network List)
+        bg_color = 'black'
+        fg_color = 'white'
+        button_bg = '#1a1a1a'
+        button_hover_bg = '#2a2a2a'
+        button_active_bg = '#3a3a3a'
+        
+        about_window.configure(bg=bg_color)
+        
+        # Configure ttk styles for dark theme
+        style = ttk.Style()
+        style.configure('About.TFrame', background=bg_color)
+        style.configure('About.TLabel', background=bg_color, foreground=fg_color)
+        style.configure('About.TButton', 
+                       background=button_bg, 
+                       foreground=fg_color,
+                       borderwidth=1,
+                       focuscolor='none',
+                       relief='flat')
+        style.map('About.TButton',
+                 background=[('active', button_hover_bg), 
+                            ('pressed', button_active_bg)],
+                 foreground=[('active', fg_color), 
+                            ('pressed', fg_color)],
+                 bordercolor=[('active', '#444444'),
+                            ('pressed', '#555555')])
+        
         # Create main frame with padding
-        main_frame = ttk.Frame(about_window, padding="20")
+        main_frame = ttk.Frame(about_window, padding="20", style='About.TFrame')
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # App title
         title_label = ttk.Label(
             main_frame, 
             text="rootX IRC Client",
-            font=("", 16, "bold")
+            font=("", 16, "bold"),
+            style='About.TLabel'
         )
         title_label.pack(pady=(0, 10))
         
@@ -2403,20 +2824,21 @@ class IRCClient:
             # Load and display logo
             logo_path = os.path.join("icons", "rootx_logo.png")
             logo = tk.PhotoImage(file=logo_path).subsample(2, 2)
-            logo_label = ttk.Label(main_frame, image=logo)
+            logo_label = ttk.Label(main_frame, image=logo, style='About.TLabel')
             logo_label.image = logo  # Keep reference
             logo_label.pack(pady=(0, 20))
         except Exception as e:
             print(f"Error loading logo: {e}")
         
         # Version info
-        version_frame = ttk.Frame(main_frame)
+        version_frame = ttk.Frame(main_frame, style='About.TFrame')
         version_frame.pack(fill=tk.X, pady=(0, 20))
         
         ttk.Label(
             version_frame,
             text="Version: 1.0.0",
-            font=("", 10)
+            font=("", 10),
+            style='About.TLabel'
         ).pack()
         
         # Description
@@ -2430,13 +2852,24 @@ class IRCClient:
             main_frame,
             text=desc_text,
             wraplength=350,
-            justify=tk.CENTER
+            justify=tk.CENTER,
+            style='About.TLabel'
         )
         desc_label.pack(pady=(0, 20))
         
-        # Features frame
-        features_frame = ttk.LabelFrame(main_frame, text="Key Features", padding="10")
-        features_frame.pack(fill=tk.X, pady=(0, 20))
+        # Features frame - use regular Frame with white border (same as other windows)
+        features_outer = tk.Frame(main_frame, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        features_outer.pack(fill=tk.X, pady=(0, 20))
+        features_inner = tk.Frame(features_outer, bg=bg_color)
+        features_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        # Title label
+        features_title = tk.Label(features_inner, text="Key Features", 
+                                 bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        features_title.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        features_content = tk.Frame(features_inner, bg=bg_color)
+        features_content.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         
         features = [
             "Multi-server support",
@@ -2448,29 +2881,34 @@ class IRCClient:
         ]
         
         for feature in features:
-            ttk.Label(features_frame, text=f"• {feature}").pack(anchor=tk.W)
+            feature_label = tk.Label(features_content, text=f"• {feature}", 
+                                    bg=bg_color, fg=fg_color)
+            feature_label.pack(anchor=tk.W)
         
         # Credits
-        credits_frame = ttk.Frame(main_frame)
+        credits_frame = ttk.Frame(main_frame, style='About.TFrame')
         credits_frame.pack(fill=tk.X)
         
         ttk.Label(
             credits_frame,
             text="Created by c0d3ninja",
-            font=("", 9)
+            font=("", 9),
+            style='About.TLabel'
         ).pack()
         
         ttk.Label(
             credits_frame,
             text="© 2024 rootX Project",
-            font=("", 9)
+            font=("", 9),
+            style='About.TLabel'
         ).pack()
         
         # Close button
         ttk.Button(
             main_frame,
             text="Close",
-            command=about_window.destroy
+            command=about_window.destroy,
+            style='About.TButton'
         ).pack(pady=(20, 0))
 
 
@@ -2493,6 +2931,430 @@ class IRCClient:
         theme_name = self.preferences.get('theme', 'default')
         current_theme_dict = self.themes.get(theme_name, self.themes['default'])
         self.network_list_window = NetworkListWindow(self, current_theme_dict)
+    
+    def show_script_manager(self):
+        """Show the Script Manager window."""
+        if self.script_manager_window is not None:
+            try:
+                if self.script_manager_window.winfo_exists():
+                    self.script_manager_window.lift()
+                    self.script_manager_window.focus_force()
+                    return # Already open
+                else:
+                    self.script_manager_window = None # Stale reference
+            except tk.TclError:
+                self.script_manager_window = None # Stale reference
+
+        # Create and show the window, passing the current theme
+        theme_name = self.preferences.get('theme', 'default')
+        current_theme_dict = self.themes.get(theme_name, self.themes['default'])
+        self.script_manager_window = ScriptManagerWindow(self, current_theme_dict)
+    
+    def show_services_window(self):
+        """Show the Services window."""
+        if self.services_window is not None:
+            try:
+                if self.services_window.winfo_exists():
+                    self.services_window.lift()
+                    self.services_window.focus_force()
+                    return # Already open
+                else:
+                    self.services_window = None # Stale reference
+            except tk.TclError:
+                self.services_window = None # Stale reference
+
+        # Create and show the window, passing the current theme
+        theme_name = self.preferences.get('theme', 'default')
+        current_theme_dict = self.themes.get(theme_name, self.themes['default'])
+        self.services_window = ServicesWindow(self, current_theme_dict)
+    
+    def apply_theme_to_all(self, theme_name):
+        """Apply theme to all open windows"""
+        if theme_name not in self.themes:
+            self.add_status_message(f"Theme '{theme_name}' not found", 'error')
+            return
+        
+        # Save theme preference
+        self.save_theme_preference(theme_name)
+        
+        theme = self.themes[theme_name]
+        
+        # Get font settings
+        font_family = self.preferences.get('font_family', 'Courier')
+        font_size = self.preferences.get('font_size', 12)
+        
+        # Apply to all channel windows (stored as dictionaries with widget references)
+        for channel_key, channel_info in self.channel_windows.items():
+            try:
+                # Get widgets from channel_info dictionary
+                chat_display = channel_info.get('chat_display')
+                users_listbox = channel_info.get('users_listbox')
+                
+                if not chat_display:
+                    print(f"DEBUG: chat_display is None for {channel_key}")
+                    continue
+                
+                # ScrolledText widgets have a .text attribute with the actual Text widget
+                # We need to configure the underlying Text widget
+                if hasattr(chat_display, 'text'):
+                    text_widget = chat_display.text
+                else:
+                    # If it's not a ScrolledText, use it directly
+                    text_widget = chat_display
+                
+                # Apply background and foreground colors to the Text widget
+                text_widget.configure(
+                    bg=theme['bg'],
+                    fg=theme['fg'],
+                    font=(font_family, font_size),
+                    insertbackground=theme['fg'],  # Cursor color
+                    selectbackground=theme.get('select_bg', '#333333'),
+                    selectforeground=theme['fg']
+                )
+                
+                # Configure text tags with theme colors
+                tag_colors = {
+                    'timestamp': 'timestamp',
+                    'join': 'join',
+                    'part': 'part',
+                    'quit': 'quit',
+                    'nick': 'nick',
+                    'username': 'username',
+                    'my_username': 'my_username',
+                    'message': 'message',
+                    'kick': 'kick',
+                    'action': 'action',
+                    'ban': 'ban',
+                    'op': 'op',
+                    'deop': 'deop',
+                    'voice': 'voice',
+                    'devoice': 'devoice',
+                    'status': 'status',
+                    'error': 'error',
+                    'notice': 'notice'
+                }
+                
+                for tag, color_key in tag_colors.items():
+                    if color_key in theme:
+                        try:
+                            text_widget.tag_configure(tag, foreground=theme[color_key])
+                        except Exception as tag_error:
+                            print(f"Error configuring tag {tag}: {tag_error}")
+                
+                if users_listbox:
+                    users_listbox.configure(
+                        bg=theme.get('list_bg', theme['bg']),
+                        fg=theme.get('list_fg', theme['fg']),
+                        selectbackground=theme.get('select_bg', '#333333'),
+                        selectforeground=theme.get('list_fg', theme['fg']),
+                        font=(font_family, font_size)
+                    )
+                
+                print(f"DEBUG: Applied theme {theme_name} to channel {channel_key}")
+            except Exception as e:
+                import traceback
+                print(f"Error applying theme to channel window {channel_key}: {e}")
+                traceback.print_exc()
+        
+        # Apply to all private windows (these are PrivateWindow objects)
+        for private_key, private_window in self.private_windows.items():
+            try:
+                if hasattr(private_window, 'apply_theme'):
+                    private_window.apply_theme(theme_name)
+                elif hasattr(private_window, 'chat_display'):
+                    # Fallback: apply directly to widgets if apply_theme doesn't exist
+                    private_window.chat_display.configure(
+                        bg=theme['bg'],
+                        fg=theme['fg'],
+                        font=(font_family, font_size)
+                    )
+                    # Configure text tags
+                    tag_colors = {
+                        'timestamp': 'timestamp',
+                        'username': 'username',
+                        'my_username': 'my_username',
+                        'message': 'message',
+                        'action': 'action'
+                    }
+                    for tag, color_key in tag_colors.items():
+                        if color_key in theme:
+                            private_window.chat_display.tag_configure(tag, foreground=theme[color_key])
+            except Exception as e:
+                print(f"Error applying theme to private window {private_key}: {e}")
+        
+        # Apply to status window
+        if self.status_display:
+            try:
+                self.apply_theme_to_status_window(theme_name)
+            except Exception as e:
+                print(f"Error applying theme to status window: {e}")
+        
+        # Apply theme to server tree (sidebar)
+        try:
+            self.apply_theme_to_tree(theme_name)
+        except Exception as e:
+            print(f"Error applying theme to server tree: {e}")
+        
+        self.add_status_message(f"Theme '{theme_name}' applied to all windows")
+    
+    def apply_theme_to_tree(self, theme_name):
+        """Apply theme to server tree (sidebar)"""
+        if theme_name not in self.themes:
+            return
+        
+        theme = self.themes[theme_name]
+        
+        # Apply to Treeview widget using ttk.Style
+        if hasattr(self, 'network_tree') and self.network_tree:
+            style = ttk.Style()
+            style.configure('Treeview',
+                           background=theme.get('list_bg', theme['bg']),
+                           foreground=theme.get('list_fg', theme['fg']),
+                           fieldbackground=theme.get('list_bg', theme['bg']),
+                           borderwidth=0)
+            style.map('Treeview',
+                     background=[('selected', theme.get('select_bg', '#333333'))],
+                     foreground=[('selected', theme.get('list_fg', theme['fg']))])
+        
+        # Apply to sidebar frame background
+        if hasattr(self, 'sidebar_frame') and self.sidebar_frame:
+            try:
+                style = ttk.Style()
+                style.configure('TreeSidebar.TFrame', background=theme['bg'])
+                self.sidebar_frame.configure(style='TreeSidebar.TFrame')
+            except Exception as e:
+                print(f"Error styling sidebar_frame: {e}")
+        
+        # Apply to tree frame background
+        if hasattr(self, 'tree_frame') and self.tree_frame:
+            try:
+                style = ttk.Style()
+                style.configure('TreeFrame.TFrame', background=theme['bg'])
+                self.tree_frame.configure(style='TreeFrame.TFrame')
+            except Exception as e:
+                print(f"Error styling tree_frame: {e}")
+    
+    def apply_theme_to_channel(self, channel_key, theme_name):
+        """Apply theme to a specific channel window"""
+        if theme_name not in self.themes or channel_key not in self.channel_windows:
+            return
+        
+        theme = self.themes[theme_name]
+        channel_info = self.channel_windows[channel_key]
+        
+        # Get font settings
+        font_family = self.preferences.get('font_family', 'Courier')
+        font_size = self.preferences.get('font_size', 12)
+        
+        chat_display = channel_info.get('chat_display')
+        users_listbox = channel_info.get('users_listbox')
+        
+        if chat_display:
+            # ScrolledText widgets have a .text attribute
+            if hasattr(chat_display, 'text'):
+                text_widget = chat_display.text
+            else:
+                text_widget = chat_display
+            
+            # Apply background and foreground colors
+            text_widget.configure(
+                bg=theme['bg'],
+                fg=theme['fg'],
+                font=(font_family, font_size),
+                insertbackground=theme['fg'],
+                selectbackground=theme.get('select_bg', '#333333'),
+                selectforeground=theme['fg']
+            )
+            
+            # Configure text tags with theme colors
+            tag_colors = {
+                'timestamp': 'timestamp',
+                'join': 'join',
+                'part': 'part',
+                'quit': 'quit',
+                'nick': 'nick',
+                'username': 'username',
+                'my_username': 'my_username',
+                'message': 'message',
+                'kick': 'kick',
+                'action': 'action',
+                'ban': 'ban',
+                'op': 'op',
+                'deop': 'deop',
+                'voice': 'voice',
+                'devoice': 'devoice',
+                'status': 'status',
+                'error': 'error',
+                'notice': 'notice'
+            }
+            
+            for tag, color_key in tag_colors.items():
+                if color_key in theme:
+                    try:
+                        text_widget.tag_configure(tag, foreground=theme[color_key])
+                    except:
+                        pass
+        
+        if users_listbox:
+            users_listbox.configure(
+                bg=theme.get('list_bg', theme['bg']),
+                fg=theme.get('list_fg', theme['fg']),
+                selectbackground=theme.get('select_bg', '#333333'),
+                selectforeground=theme.get('list_fg', theme['fg']),
+                font=(font_family, font_size)
+            )
+    
+    def apply_theme_to_private_window(self, pm_key, theme_name):
+        """Apply theme to a specific private message window"""
+        if theme_name not in self.themes or pm_key not in self.private_windows:
+            return
+        
+        private_window = self.private_windows[pm_key]
+        theme = self.themes[theme_name]
+        font_family = self.preferences.get('font_family', 'Courier')
+        font_size = self.preferences.get('font_size', 12)
+        
+        # If it's a PrivateWindow object with apply_theme method
+        if hasattr(private_window, 'apply_theme'):
+            private_window.apply_theme(theme_name)
+        elif isinstance(private_window, dict):
+            # If it's a dictionary with chat_display (new tab-based PM windows)
+            chat_display = private_window.get('chat_display')
+            
+            if chat_display:
+                # Handle ScrolledText
+                if hasattr(chat_display, 'text'):
+                    text_widget = chat_display.text
+                else:
+                    text_widget = chat_display
+                
+                text_widget.configure(
+                    bg=theme['bg'],
+                    fg=theme['fg'],
+                    font=(font_family, font_size),
+                    insertbackground=theme['fg'],
+                    selectbackground=theme.get('select_bg', '#333333'),
+                    selectforeground=theme['fg']
+                )
+                
+                # Configure text tags
+                tag_colors = {
+                    'timestamp': 'timestamp',
+                    'username': 'username',
+                    'my_username': 'my_username',
+                    'message': 'message',
+                    'action': 'action'
+                }
+                
+                for tag, color_key in tag_colors.items():
+                    if color_key in theme:
+                        try:
+                            text_widget.tag_configure(tag, foreground=theme[color_key])
+                        except:
+                            pass
+        elif hasattr(private_window, 'chat_display'):
+            # Fallback for PrivateWindow objects
+            chat_display = private_window.chat_display
+            
+            if chat_display:
+                if hasattr(chat_display, 'text'):
+                    text_widget = chat_display.text
+                else:
+                    text_widget = chat_display
+                
+                text_widget.configure(
+                    bg=theme['bg'],
+                    fg=theme['fg'],
+                    font=(font_family, font_size),
+                    insertbackground=theme['fg'],
+                    selectbackground=theme.get('select_bg', '#333333'),
+                    selectforeground=theme['fg']
+                )
+                
+                tag_colors = {
+                    'timestamp': 'timestamp',
+                    'username': 'username',
+                    'my_username': 'my_username',
+                    'message': 'message',
+                    'action': 'action'
+                }
+                
+                for tag, color_key in tag_colors.items():
+                    if color_key in theme:
+                        try:
+                            text_widget.tag_configure(tag, foreground=theme[color_key])
+                        except:
+                            pass
+    
+    def apply_theme_to_status_window(self, theme_name):
+        """Apply theme to status window"""
+        if theme_name not in self.themes:
+            return
+        
+        theme = self.themes[theme_name]
+        if self.status_display:
+            # Get font settings
+            font_family = self.preferences.get('font_family', 'Courier')
+            font_size = self.preferences.get('font_size', 12)
+            
+            # ScrolledText widgets have a .text attribute with the actual Text widget
+            if hasattr(self.status_display, 'text'):
+                text_widget = self.status_display.text
+            else:
+                text_widget = self.status_display
+            
+            text_widget.configure(
+                bg=theme['bg'],
+                fg=theme['fg'],
+                font=(font_family, font_size),
+                insertbackground=theme['fg'],
+                selectbackground=theme.get('select_bg', '#333333'),
+                selectforeground=theme['fg']
+            )
+            
+            # Configure text tags
+            tag_colors = {
+                'timestamp': 'timestamp',
+                'status': 'status',
+                'error': 'error',
+                'notice': 'notice'
+            }
+            
+            for tag, color_key in tag_colors.items():
+                if color_key in theme:
+                    text_widget.tag_configure(tag, foreground=theme[color_key])
+    
+    def apply_font_to_all_windows(self):
+        """Apply font settings to all windows"""
+        font_family = self.preferences.get('font_family', 'Courier')
+        font_size = self.preferences.get('font_size', 12)
+        
+        # Apply to all channel windows (stored as dictionaries with widget references)
+        for channel_info in self.channel_windows.values():
+            try:
+                chat_display = channel_info.get('chat_display')
+                users_listbox = channel_info.get('users_listbox')
+                if chat_display:
+                    chat_display.configure(font=(font_family, font_size))
+                if users_listbox:
+                    users_listbox.configure(font=(font_family, font_size))
+            except:
+                pass
+        
+        # Apply to all private windows (these are PrivateWindow objects)
+        for private_window in self.private_windows.values():
+            try:
+                if hasattr(private_window, 'chat_display'):
+                    private_window.chat_display.configure(font=(font_family, font_size))
+            except:
+                pass
+        
+        # Apply to status window
+        if self.status_display:
+            try:
+                self.status_display.configure(font=(font_family, font_size))
+            except:
+                pass
 
     def show_join_dialog(self):
         """Show join channel dialog"""
@@ -2532,13 +3394,21 @@ class IRCClient:
         self.add_status_message("Use /quit [message] to disconnect")
         self.add_status_message("Example: /quit Goodbye!")
 
-    def disconnect_from_server(self, server):
-        """Safely disconnect from a server"""
+    def disconnect_from_server(self, server, manual=True):
+        """Safely disconnect from a server
+        Args:
+            server: Server to disconnect from
+            manual: If True, marks as manual disconnect (prevents auto-reconnect)
+        """
         try:
             self.disconnecting = True
             
             with self.lock:
                 if server in self.connections:
+                    # Mark as manual disconnect only if explicitly manual
+                    if manual:
+                        self.manual_disconnect.add(server)
+                    
                     self.add_status_message(f"Disconnecting from {server}...")
                     
                     # Close tabs using the new methods before removing server node
@@ -2981,7 +3851,8 @@ class IRCClient:
             if data.startswith('ERROR :') or 'Connection closed' in data:
                 error_msg = data.split(':', 1)[1].strip()
                 self.add_status_message(f"Server {server} disconnected: {error_msg}")
-                self.quit_server(server)
+                # Don't mark as manual disconnect - allow auto-reconnect
+                self.disconnect_from_server(server, manual=False)
                 self.remove_server_node(server)
                 return
                 
@@ -3376,6 +4247,42 @@ class IRCClient:
                             'host': host
                         }
                         
+                        # Check if this is our own QUIT (server closing connection)
+                        if server in self.connections:
+                            our_nick = self.connections[server].get('nickname', '')
+                            if user == our_nick:
+                                # Server is closing our connection - trigger auto-reconnect
+                                self.add_status_message(f"Server {server} closed connection: {quit_msg}")
+                                
+                                # Store channels and config for auto-reconnect before cleanup
+                                channels_to_rejoin = self.connections[server].get('channels', set()).copy()
+                                server_config = None
+                                network_config = self.load_network_config()
+                                # Search through networks list to find matching server
+                                for network in network_config.get('networks', []):
+                                    if network.get('server') == server:
+                                        server_config = network.copy()
+                                        break
+                                
+                                # Don't mark as manual disconnect - allow auto-reconnect
+                                self.disconnect_from_server(server, manual=False)
+                                
+                                # Start auto-reconnect if enabled and not already reconnecting
+                                if (self.auto_reconnect_enabled and 
+                                    server not in self.manual_disconnect and 
+                                    server not in self.reconnect_in_progress and
+                                    server_config and 
+                                    channels_to_rejoin):
+                                    self.reconnect_in_progress.add(server)
+                                    reconnect_thread = threading.Thread(
+                                        target=self.auto_reconnect,
+                                        args=(server, server_config, channels_to_rejoin),
+                                        daemon=True
+                                    )
+                                    reconnect_thread.start()
+                                
+                                return
+                        
                         # Trigger QUIT script event with hostmask info
                         if self.script_engine:
                             self.script_engine.trigger_event('QUIT', user, '*', quit_msg, server, extra_context)
@@ -3560,6 +4467,12 @@ class IRCClient:
             )
             ping_thread.start()
             
+            # Clear manual disconnect flag and reset reconnect attempts on successful connection
+            self.manual_disconnect.discard(server)
+            self.reconnect_in_progress.discard(server)
+            if server in self.reconnect_attempts:
+                self.reconnect_attempts[server] = 0
+            
             # Update status
             self.add_status_message(f"Connected to {server}:{port} as {nickname}")
             
@@ -3617,6 +4530,103 @@ class IRCClient:
             # Thread is exiting - if we're still connected, something went wrong
             if server in self.connections and not self.disconnecting:
                 self.add_status_message(f"Ping thread for {server} exited unexpectedly", 'error')
+    
+    def auto_reconnect(self, server: str, server_config: dict, channels_to_rejoin: set):
+        """Automatically reconnect to a server and rejoin channels"""
+        if not self.auto_reconnect_enabled:
+            return
+        
+        # Initialize reconnect attempts counter
+        if server not in self.reconnect_attempts:
+            self.reconnect_attempts[server] = 0
+        
+        # Wait a bit before first reconnect attempt
+        wait_time = 5  # Start with 5 seconds
+        self.add_status_message(f"Auto-reconnect: Waiting {wait_time} seconds before reconnecting to {server}...", 'info')
+        time.sleep(wait_time)
+        
+        while self.reconnect_attempts[server] < self.max_reconnect_attempts:
+            # Check if manual disconnect happened (user doesn't want to reconnect)
+            if server in self.manual_disconnect:
+                self.manual_disconnect.discard(server)
+                self.reconnect_attempts[server] = 0
+                return
+            
+            self.reconnect_attempts[server] += 1
+            attempt = self.reconnect_attempts[server]
+            
+            self.add_status_message(
+                f"Auto-reconnect: Attempting to reconnect to {server} (attempt {attempt}/{self.max_reconnect_attempts})...",
+                'info'
+            )
+            
+            try:
+                # Extract connection info from config
+                host = server_config.get('host', server)
+                port = server_config.get('port', 6667)
+                nickname = server_config.get('nickname', 'RootXUser')
+                username = server_config.get('username', 'rootx')
+                realname = server_config.get('realname', 'RootX IRC Client')
+                password = server_config.get('password', '')
+                
+                # Attempt to connect
+                self.connect_to_server(host, port, nickname, username, realname, password, server)
+                
+                # Wait a moment for connection to establish
+                time.sleep(2)
+                
+                # Check if connection was successful
+                if server in self.connections:
+                    self.add_status_message(f"Auto-reconnect: Successfully reconnected to {server}!", 'success')
+                    
+                    # Wait a bit more for registration to complete
+                    time.sleep(3)
+                    
+                    # Rejoin channels
+                    if channels_to_rejoin:
+                        self.add_status_message(f"Auto-reconnect: Rejoining {len(channels_to_rejoin)} channel(s)...", 'info')
+                        for channel in channels_to_rejoin:
+                            try:
+                                # Get channel key if it was stored
+                                channel_key = f"{server}:{channel}"
+                                if channel_key in self.channel_windows:
+                                    stored_key = self.channel_windows[channel_key].get('key', '')
+                                    if stored_key:
+                                        self.send_command(f"JOIN {channel} {stored_key}", server)
+                                    else:
+                                        self.send_command(f"JOIN {channel}", server)
+                                else:
+                                    self.send_command(f"JOIN {channel}", server)
+                                time.sleep(0.5)  # Small delay between joins
+                            except Exception as e:
+                                self.add_status_message(f"Error rejoining {channel}: {e}", 'error')
+                    
+                    # Reset reconnect attempts on success
+                    self.reconnect_attempts[server] = 0
+                    self.reconnect_in_progress.discard(server)
+                    return
+                else:
+                    raise Exception("Connection not established")
+                    
+            except Exception as e:
+                self.add_status_message(
+                    f"Auto-reconnect: Failed to reconnect to {server} (attempt {attempt}/{self.max_reconnect_attempts}): {e}",
+                    'error'
+                )
+                
+                # Exponential backoff: wait longer between each attempt
+                wait_time = min(30, 5 * (2 ** (attempt - 1)))  # 5s, 10s, 20s, 30s max
+                if attempt < self.max_reconnect_attempts:
+                    self.add_status_message(f"Auto-reconnect: Waiting {wait_time} seconds before next attempt...", 'info')
+                    time.sleep(wait_time)
+        
+        # Max attempts reached
+        self.add_status_message(
+            f"Auto-reconnect: Failed to reconnect to {server} after {self.max_reconnect_attempts} attempts. Giving up.",
+            'error'
+        )
+        self.reconnect_attempts[server] = 0  # Reset for next time
+        self.reconnect_in_progress.discard(server)  # Clear reconnect flag
 
     def run(self):
         """Start the IRC client"""
@@ -3666,7 +4676,8 @@ class IRCClient:
                         consecutive_timeouts += 1
                         if consecutive_timeouts >= 3:  # Three consecutive empty reads
                             self.add_status_message(f"Connection to {server} closed by remote host", 'error')
-                        break
+                            # Don't mark as manual disconnect - allow auto-reconnect
+                            break
                         # Otherwise, try again
                         continue
                     
@@ -3710,14 +4721,43 @@ class IRCClient:
         except Exception as e:
             self.add_status_message(f"Error in receive thread for {server}: {e}", 'error')
         finally:
+            # Store channels before cleanup for auto-reconnect
+            channels_to_rejoin = set()
+            server_config = None
+            if server in self.connections and not self.disconnecting:
+                channels_to_rejoin = self.connections[server].get('channels', set()).copy()
+                # Get server config for reconnection
+                network_config = self.load_network_config()
+                # Search through networks list to find matching server
+                for network in network_config.get('networks', []):
+                    if network.get('server') == server:
+                        server_config = network.copy()
+                        break
+            
             # Clean up but only if not already being cleaned up elsewhere
             if server in self.connections and not self.disconnecting:
                 try:
-                    self.disconnect_from_server(server)
+                    # Don't mark as manual - allow auto-reconnect
+                    self.disconnect_from_server(server, manual=False)
                 except Exception as e:
                     self.add_status_message(f"Error disconnecting from {server}: {e}", 'error')
                     
             self.add_status_message(f"Receive thread for {server} terminated")
+            
+            # Attempt auto-reconnect if enabled and not a manual disconnect and not already reconnecting
+            if (self.auto_reconnect_enabled and 
+                server not in self.manual_disconnect and 
+                server not in self.reconnect_in_progress and
+                server_config and 
+                channels_to_rejoin):
+                self.reconnect_in_progress.add(server)
+                # Start reconnect in a separate thread to avoid blocking
+                reconnect_thread = threading.Thread(
+                    target=self.auto_reconnect,
+                    args=(server, server_config, channels_to_rejoin),
+                    daemon=True
+                )
+                reconnect_thread.start()
 
     def on_tree_select(self, event):
         """Handle tree item selection"""
@@ -4992,54 +6032,119 @@ class NetworkListWindow(tk.Toplevel):
         self.transient(irc_client.window)
         self.grab_set()
 
-        # --- Apply Theme Colors ---
-        bg_color = theme.get('bg', 'SystemButtonFace')
-        fg_color = theme.get('fg', 'black')
-        list_bg = theme.get('list_bg', bg_color) # Specific list bg or main bg
-        list_fg = theme.get('list_fg', fg_color) # Specific list fg or main fg
-        list_select_bg = theme.get('select_bg', '#333333') # Selection color
+        # Force dark black theme for Network List (same as Script Manager)
+        bg_color = 'black'
+        fg_color = 'white'
+        list_bg = 'black'
+        list_fg = 'white'
+        list_select_bg = '#333333'
+        button_bg = '#1a1a1a'
+        button_hover_bg = '#2a2a2a'
+        button_active_bg = '#3a3a3a'
+        entry_bg = '#0a0a0a'
+        entry_fg = 'white'
 
         self.configure(bg=bg_color)
+        
+        # Configure ttk styles for dark theme
+        style = ttk.Style()
+        style.configure('NetworkList.TFrame', background=bg_color)
+        style.configure('NetworkList.TLabel', background=bg_color, foreground=fg_color)
+        style.configure('NetworkList.TButton', 
+                       background=button_bg, 
+                       foreground=fg_color,
+                       borderwidth=1,
+                       focuscolor='none',
+                       relief='flat')
+        style.map('NetworkList.TButton',
+                 background=[('active', button_hover_bg), 
+                            ('pressed', button_active_bg),
+                            ('disabled', '#0a0a0a')],
+                 foreground=[('active', fg_color), 
+                            ('pressed', fg_color),
+                            ('disabled', '#666666')],
+                 bordercolor=[('active', '#444444'),
+                            ('pressed', '#555555')])
+        style.configure('NetworkList.TEntry',
+                         fieldbackground=entry_bg,
+                         foreground=entry_fg,
+                         borderwidth=1,
+                         bordercolor='#333333')
+        style.map('NetworkList.TEntry',
+                 fieldbackground=[('focus', '#1a1a1a')],
+                 bordercolor=[('focus', '#555555')])
+        # Configure scrollbar
+        style.configure('Vertical.TScrollbar',
+                       background='#2a2a2a',
+                       troughcolor=bg_color,
+                       borderwidth=0,
+                       arrowcolor=fg_color,
+                       darkcolor=bg_color,
+                       lightcolor=bg_color)
+        style.map('Vertical.TScrollbar',
+                 background=[('active', '#3a3a3a')])
 
         # --- Main Frames ---
-        top_frame = ttk.Frame(self, padding=10)
+        top_frame = ttk.Frame(self, padding=10, style='NetworkList.TFrame')
         top_frame.pack(side=tk.TOP, fill=tk.X)
-        network_frame = ttk.Frame(self, padding=10)
+        network_frame = ttk.Frame(self, padding=10, style='NetworkList.TFrame')
         network_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        bottom_frame = ttk.Frame(self, padding=10)
+        bottom_frame = ttk.Frame(self, padding=10, style='NetworkList.TFrame')
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # --- User Information (Top Frame) ---
-        user_info_frame = ttk.LabelFrame(top_frame, text="User Information", padding=5)
-        user_info_frame.pack(fill=tk.X)
-        # user_info_frame.configure(style='Themed.TLabelframe') # If using ttk styles
+        # Use regular Frame with white border (same as Script Manager)
+        user_info_outer = tk.Frame(top_frame, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        user_info_outer.pack(fill=tk.X, pady=5)
+        user_info_frame = tk.Frame(user_info_outer, bg=bg_color)
+        user_info_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        # Title label
+        title_label = tk.Label(user_info_frame, text="User Information", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=(5, 10))
 
         # Apply theme to labels/entries within user info
-        ttk.Label(user_info_frame, text="Nick name:", foreground=fg_color).grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.nick1_entry = ttk.Entry(user_info_frame, width=30)
-        self.nick1_entry.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Label(user_info_frame, text="Nick name:", foreground=fg_color, 
+                 style='NetworkList.TLabel').grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.nick1_entry = ttk.Entry(user_info_frame, width=30, style='NetworkList.TEntry')
+        self.nick1_entry.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
 
-        ttk.Label(user_info_frame, text="Second choice:", foreground=fg_color).grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.nick2_entry = ttk.Entry(user_info_frame, width=30)
-        self.nick2_entry.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Label(user_info_frame, text="Second choice:", foreground=fg_color, 
+                 style='NetworkList.TLabel').grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+        self.nick2_entry = ttk.Entry(user_info_frame, width=30, style='NetworkList.TEntry')
+        self.nick2_entry.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
 
-        ttk.Label(user_info_frame, text="Third choice:", foreground=fg_color).grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        self.nick3_entry = ttk.Entry(user_info_frame, width=30)
-        self.nick3_entry.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Label(user_info_frame, text="Third choice:", foreground=fg_color, 
+                 style='NetworkList.TLabel').grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.nick3_entry = ttk.Entry(user_info_frame, width=30, style='NetworkList.TEntry')
+        self.nick3_entry.grid(row=3, column=1, sticky=tk.EW, padx=5, pady=2)
 
-        ttk.Label(user_info_frame, text="User name:", foreground=fg_color).grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
-        self.username_entry = ttk.Entry(user_info_frame, width=30)
-        self.username_entry.grid(row=3, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Label(user_info_frame, text="User name:", foreground=fg_color, 
+                 style='NetworkList.TLabel').grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        self.username_entry = ttk.Entry(user_info_frame, width=30, style='NetworkList.TEntry')
+        self.username_entry.grid(row=4, column=1, sticky=tk.EW, padx=5, pady=2)
 
         user_info_frame.columnconfigure(1, weight=1)
 
         # --- Networks (Middle Frame) ---
-        networks_label_frame = ttk.LabelFrame(network_frame, text="Networks", padding=5)
-        networks_label_frame.pack(fill=tk.BOTH, expand=True)
+        # Use regular Frame with white border (same as Script Manager)
+        networks_outer = tk.Frame(network_frame, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        networks_outer.pack(fill=tk.BOTH, expand=True, pady=5)
+        networks_inner = tk.Frame(networks_outer, bg=bg_color)
+        networks_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        # Title label
+        networks_title = tk.Label(networks_inner, text="Networks", 
+                                  bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        networks_title.pack(anchor=tk.W, padx=5, pady=(5, 2))
+        
+        networks_content = tk.Frame(networks_inner, bg=bg_color)
+        networks_content.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
 
-        list_frame = ttk.Frame(networks_label_frame)
+        list_frame = ttk.Frame(networks_content, style='NetworkList.TFrame')
         list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        button_list_frame = ttk.Frame(networks_label_frame)
+        button_list_frame = ttk.Frame(networks_content, style='NetworkList.TFrame')
         button_list_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0))
 
         # Listbox Scrollbar
@@ -5063,16 +6168,21 @@ class NetworkListWindow(tk.Toplevel):
         self.network_listbox.bind('<<ListboxSelect>>', self.on_network_select)
 
         # Network Buttons
-        ttk.Button(button_list_frame, text="Add...", command=self.add_network).pack(fill=tk.X, pady=2)
-        self.remove_button = ttk.Button(button_list_frame, text="Remove", command=self.remove_network, state=tk.DISABLED)
+        ttk.Button(button_list_frame, text="Add...", command=self.add_network, 
+                  style='NetworkList.TButton').pack(fill=tk.X, pady=2)
+        self.remove_button = ttk.Button(button_list_frame, text="Remove", command=self.remove_network, 
+                                       state=tk.DISABLED, style='NetworkList.TButton')
         self.remove_button.pack(fill=tk.X, pady=2)
-        self.edit_button = ttk.Button(button_list_frame, text="Edit...", command=self.edit_network, state=tk.DISABLED)
+        self.edit_button = ttk.Button(button_list_frame, text="Edit...", command=self.edit_network, 
+                                     state=tk.DISABLED, style='NetworkList.TButton')
         self.edit_button.pack(fill=tk.X, pady=2)
 
         # --- Bottom Buttons ---
-        self.connect_button = ttk.Button(bottom_frame, text="Connect", command=self.connect_selected, state=tk.DISABLED)
+        self.connect_button = ttk.Button(bottom_frame, text="Connect", command=self.connect_selected, 
+                                        state=tk.DISABLED, style='NetworkList.TButton')
         self.connect_button.pack(side=tk.RIGHT, padx=5)
-        ttk.Button(bottom_frame, text="Close", command=self.on_closing).pack(side=tk.RIGHT)
+        ttk.Button(bottom_frame, text="Close", command=self.on_closing, 
+                  style='NetworkList.TButton').pack(side=tk.RIGHT)
 
         # --- Load Data ---
         self.load_data_to_gui()
@@ -5256,6 +6366,1739 @@ class NetworkListWindow(tk.Toplevel):
     def ping_server_periodically(self, server):
         """Send periodic pings to keep the connection alive"""
                     
+
+class ScriptManagerWindow(tk.Toplevel):
+    """GUI window for managing scripts - load, unload, reload"""
+    
+    def __init__(self, irc_client, theme):
+        super().__init__(irc_client.window)
+        self.irc_client = irc_client
+        self.theme = theme
+        self.selected_script_index = None
+        self.selected_script = None  # Initialize selected_script
+        
+        self.title("Script Manager")
+        self.geometry("700x500")
+        self.transient(irc_client.window)
+        self.grab_set()
+        
+        # Force dark black theme for Script Manager
+        bg_color = 'black'
+        fg_color = 'white'
+        list_bg = 'black'
+        list_fg = 'white'
+        list_select_bg = '#333333'
+        button_bg = '#1a1a1a'
+        button_hover_bg = '#2a2a2a'
+        button_active_bg = '#3a3a3a'
+        
+        self.configure(bg=bg_color)
+        
+        # Configure ttk styles for dark theme
+        style = ttk.Style()
+        style.configure('ScriptManager.TFrame', background=bg_color)
+        style.configure('ScriptManager.TLabel', background=bg_color, foreground=fg_color)
+        # Use default TLabelFrame style and configure it to blend with background
+        style.configure('TLabelFrame', background=bg_color, foreground=fg_color, bordercolor=bg_color)
+        style.configure('TLabelFrame.Label', background=bg_color, foreground=fg_color)
+        style.configure('ScriptManager.TButton', 
+                       background=button_bg, 
+                       foreground=fg_color,
+                       borderwidth=1,
+                       focuscolor='none',
+                       relief='flat')
+        style.map('ScriptManager.TButton',
+                 background=[('active', button_hover_bg), 
+                            ('pressed', button_active_bg),
+                            ('disabled', '#0a0a0a')],
+                 foreground=[('active', fg_color), 
+                            ('pressed', fg_color),
+                            ('disabled', '#666666')],
+                 bordercolor=[('active', '#444444'),
+                            ('pressed', '#555555')])
+        # Configure scrollbar using the default Vertical/Horizontal styles
+        # We'll configure these and use them directly
+        style.configure('Vertical.TScrollbar',
+                       background='#2a2a2a',
+                       troughcolor=bg_color,
+                       borderwidth=0,
+                       arrowcolor=fg_color,
+                       darkcolor=bg_color,
+                       lightcolor=bg_color)
+        style.map('Vertical.TScrollbar',
+                 background=[('active', '#3a3a3a')])
+        style.configure('Horizontal.TScrollbar',
+                       background='#2a2a2a',
+                       troughcolor=bg_color,
+                       borderwidth=0,
+                       arrowcolor=fg_color,
+                       darkcolor=bg_color,
+                       lightcolor=bg_color)
+        style.map('Horizontal.TScrollbar',
+                 background=[('active', '#3a3a3a')])
+        
+        # Main frames
+        top_frame = ttk.Frame(self, padding=10, style='ScriptManager.TFrame')
+        top_frame.pack(side=tk.TOP, fill=tk.X)
+        
+        script_frame = ttk.Frame(self, padding=10, style='ScriptManager.TFrame')
+        script_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        
+        # Info frame - same width as script_frame
+        info_frame = ttk.Frame(self, padding=10, style='ScriptManager.TFrame')
+        info_frame.pack(side=tk.TOP, fill=tk.X)
+        
+        bottom_frame = ttk.Frame(self, padding=10, style='ScriptManager.TFrame')
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Script list label
+        ttk.Label(top_frame, text="Scripts:", foreground=fg_color, style='ScriptManager.TLabel').pack(side=tk.LEFT)
+        
+        # Script list with scrollbar
+        list_container = ttk.Frame(script_frame, style='ScriptManager.TFrame')
+        list_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        list_scrollbar = ttk.Scrollbar(list_container, orient=tk.VERTICAL)
+        list_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Listbox for scripts
+        self.script_listbox = tk.Listbox(
+            list_container,
+            yscrollcommand=list_scrollbar.set,
+            exportselection=False,
+            bg=list_bg,
+            fg=list_fg,
+            selectbackground=list_select_bg,
+            selectforeground=list_fg,
+            borderwidth=0,
+            highlightthickness=0
+        )
+        self.script_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        list_scrollbar.config(command=self.script_listbox.yview)
+        self.script_listbox.bind('<<ListboxSelect>>', self.on_script_select)
+        self.script_listbox.bind('<Double-Button-1>', lambda e: self.reload_selected())
+        
+        # Button frame
+        button_frame = ttk.Frame(script_frame, style='ScriptManager.TFrame')
+        button_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0))
+        
+        self.load_button = ttk.Button(button_frame, text="Load", command=self.load_selected, 
+                                      state=tk.DISABLED, style='ScriptManager.TButton')
+        self.load_button.pack(fill=tk.X, pady=2)
+        
+        self.load_file_button = ttk.Button(button_frame, text="Upload", 
+                                           command=self.load_from_file, style='ScriptManager.TButton')
+        self.load_file_button.pack(fill=tk.X, pady=2)
+        
+        self.unload_button = ttk.Button(button_frame, text="Unload", command=self.unload_selected, 
+                                        state=tk.DISABLED, style='ScriptManager.TButton')
+        self.unload_button.pack(fill=tk.X, pady=2)
+        
+        self.reload_button = ttk.Button(button_frame, text="Reload", command=self.reload_selected, 
+                                        state=tk.DISABLED, style='ScriptManager.TButton')
+        self.reload_button.pack(fill=tk.X, pady=2)
+        
+        self.reload_all_button = ttk.Button(button_frame, text="Reload All", 
+                                            command=self.reload_all, style='ScriptManager.TButton')
+        self.reload_all_button.pack(fill=tk.X, pady=2)
+        
+        self.unload_all_button = ttk.Button(button_frame, text="Unload All", 
+                                           command=self.unload_all, style='ScriptManager.TButton')
+        self.unload_all_button.pack(fill=tk.X, pady=2)
+        
+        # Info frame - create container that matches script list width
+        info_container = ttk.Frame(info_frame, style='ScriptManager.TFrame')
+        info_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Use a regular Frame with white border instead of LabelFrame
+        info_label_frame = tk.Frame(info_container, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        info_label_frame.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+        
+        # Inner frame with black background (creates white border effect)
+        inner_frame = tk.Frame(info_label_frame, bg=bg_color)
+        inner_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        # Add a label for "Script Information" title
+        title_label = tk.Label(inner_frame, text="Script Information", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.pack(anchor=tk.W, padx=5, pady=(5, 2))
+        
+        # Info text (ScrolledText has its own scrollbar)
+        self.info_text = scrolledtext.ScrolledText(
+            inner_frame,
+            height=6,
+            wrap=tk.WORD,
+            bg=bg_color,  # Black background
+            fg=list_fg,   # White text
+            borderwidth=0,
+            highlightthickness=0,
+            insertbackground=fg_color,  # Cursor color
+            selectbackground=list_select_bg,
+            selectforeground=list_fg,
+            relief=tk.FLAT
+        )
+        self.info_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
+        self.info_text.config(state=tk.DISABLED)
+        
+        # Add spacer to match button frame width (same as script_frame layout)
+        spacer = ttk.Frame(info_frame, style='ScriptManager.TFrame', width=100)
+        spacer.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # Style the internal scrollbar to match the one above (same theme as list_scrollbar)
+        try:
+            # Find scrollbar in the ScrolledText widget's children
+            for widget in self.info_text.winfo_children():
+                if isinstance(widget, tk.Scrollbar):
+                    widget.config(bg='#2a2a2a', 
+                                troughcolor=bg_color,
+                                activebackground='#3a3a3a',
+                                borderwidth=0,
+                                highlightthickness=0,
+                                width=widget.cget('width'))  # Keep original width
+        except:
+            pass
+        
+        # Bottom buttons
+        ttk.Button(bottom_frame, text="Refresh", command=self.refresh_list, 
+                  style='ScriptManager.TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom_frame, text="Close", command=self.on_closing, 
+                  style='ScriptManager.TButton').pack(side=tk.RIGHT, padx=5)
+        
+        # Load script list
+        self.refresh_list()
+        
+        # Handle window closing
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def refresh_list(self):
+        """Refresh the script list"""
+        self.script_listbox.delete(0, tk.END)
+        self.script_info = {}  # filename -> info dict
+        
+        scripts_dir = self.irc_client.script_engine.scripts_dir
+        loaded_scripts = set(self.irc_client.script_engine.loaded_scripts.keys())
+        script_paths = getattr(self.irc_client.script_engine, 'script_paths', {})
+        
+        # Track which scripts we've added to avoid duplicates
+        added_scripts = set()
+        
+        # First, add scripts from the scripts directory
+        if os.path.exists(scripts_dir):
+            for filename in sorted(os.listdir(scripts_dir)):
+                if filename.endswith('.rsx') or filename.endswith('.txt'):
+                    added_scripts.add(filename)
+                    is_loaded = filename in loaded_scripts
+                    status = "✓" if is_loaded else "○"
+                    display_name = f"{status} {filename}"
+                    self.script_listbox.insert(tk.END, display_name)
+                    
+                    # Get script info
+                    filepath = os.path.join(scripts_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        # Count events and aliases in content
+                        event_count = len(re.findall(r'on\s+\w+:', content, re.IGNORECASE))
+                        alias_count = len(re.findall(r'alias\s+/', content, re.IGNORECASE))
+                        
+                        self.script_info[filename] = {
+                            'loaded': is_loaded,
+                            'events': event_count,
+                            'aliases': alias_count,
+                            'size': len(content),
+                            'lines': len(content.split('\n')),
+                            'path': filepath
+                        }
+                    except Exception as e:
+                        self.script_info[filename] = {
+                            'loaded': is_loaded,
+                            'error': str(e),
+                            'path': filepath
+                        }
+        
+        # Then, add externally loaded scripts that aren't in the directory
+        for filename in sorted(loaded_scripts):
+            if filename not in added_scripts:
+                added_scripts.add(filename)
+                status = "✓"
+                # Mark external scripts with a different indicator
+                external_path = script_paths.get(filename, '')
+                if external_path:
+                    display_name = f"{status} {filename} [External]"
+                else:
+                    display_name = f"{status} {filename}"
+                self.script_listbox.insert(tk.END, display_name)
+                
+                # Get script info from loaded content
+                content = self.irc_client.script_engine.loaded_scripts.get(filename, '')
+                try:
+                    # Count events and aliases in content
+                    event_count = len(re.findall(r'on\s+\w+:', content, re.IGNORECASE))
+                    alias_count = len(re.findall(r'alias\s+/', content, re.IGNORECASE))
+                    
+                    self.script_info[filename] = {
+                        'loaded': True,
+                        'events': event_count,
+                        'aliases': alias_count,
+                        'size': len(content),
+                        'lines': len(content.split('\n')),
+                        'path': external_path if external_path else 'Loaded in memory'
+                    }
+                except Exception as e:
+                    self.script_info[filename] = {
+                        'loaded': True,
+                        'error': str(e),
+                        'path': external_path if external_path else 'Loaded in memory'
+                    }
+        
+        self.update_button_states()
+        self.update_info_display()
+    
+    def on_script_select(self, event):
+        """Handle script selection"""
+        selection = self.script_listbox.curselection()
+        if selection:
+            self.selected_script_index = selection[0]
+            # Extract filename from display name (remove status symbol and [External] tag)
+            display_name = self.script_listbox.get(selection[0])
+            # Remove status symbol (✓ or ○) and [External] tag if present
+            parts = display_name.split(' ', 1)
+            if len(parts) > 1:
+                filename = parts[1]
+                # Remove [External] tag if present
+                if filename.endswith(' [External]'):
+                    filename = filename[:-12]  # Remove " [External]"
+                self.selected_script = filename
+            else:
+                self.selected_script = display_name
+        else:
+            self.selected_script_index = None
+            self.selected_script = None
+        self.update_button_states()
+        self.update_info_display()
+    
+    def update_button_states(self):
+        """Update button states based on selection"""
+        if self.selected_script_index is not None:
+            script_info = self.script_info.get(self.selected_script, {})
+            is_loaded = script_info.get('loaded', False)
+            
+            self.load_button.config(state=tk.NORMAL if not is_loaded else tk.DISABLED)
+            self.unload_button.config(state=tk.NORMAL if is_loaded else tk.DISABLED)
+            self.reload_button.config(state=tk.NORMAL if is_loaded else tk.DISABLED)
+        else:
+            self.load_button.config(state=tk.DISABLED)
+            self.unload_button.config(state=tk.DISABLED)
+            self.reload_button.config(state=tk.DISABLED)
+    
+    def update_info_display(self):
+        """Update the info display with selected script information"""
+        if not hasattr(self, 'info_text'):
+            return  # info_text not created yet
+        self.info_text.config(state=tk.NORMAL)
+        self.info_text.delete(1.0, tk.END)
+        
+        if self.selected_script and self.selected_script in self.script_info:
+            info = self.script_info[self.selected_script]
+            status = "Loaded" if info.get('loaded', False) else "Not Loaded"
+            self.info_text.insert(tk.END, f"File: {self.selected_script}\n")
+            self.info_text.insert(tk.END, f"Status: {status}\n")
+            
+            # Show path if available
+            path = info.get('path', '')
+            if path:
+                self.info_text.insert(tk.END, f"Path: {path}\n")
+            
+            if 'error' in info:
+                self.info_text.insert(tk.END, f"Error: {info['error']}\n")
+            else:
+                self.info_text.insert(tk.END, f"Events: {info.get('events', 0)}\n")
+                self.info_text.insert(tk.END, f"Aliases: {info.get('aliases', 0)}\n")
+                self.info_text.insert(tk.END, f"Size: {info.get('size', 0)} bytes\n")
+                self.info_text.insert(tk.END, f"Lines: {info.get('lines', 0)}\n")
+        else:
+            self.info_text.insert(tk.END, "No script selected")
+        
+        self.info_text.config(state=tk.DISABLED)
+    
+    def load_selected(self):
+        """Load the selected script"""
+        # Get current selection directly from listbox
+        selection = self.script_listbox.curselection()
+        if not selection:
+            self.irc_client.add_status_message("No script selected", 'error')
+            return
+        
+        # Extract filename from display name (remove status symbol and [External] tag)
+        display_name = self.script_listbox.get(selection[0])
+        parts = display_name.split(' ', 1)
+        if len(parts) > 1:
+            filename = parts[1]
+            # Remove [External] tag if present
+            if filename.endswith(' [External]'):
+                filename = filename[:-12]
+        else:
+            filename = display_name
+        
+        if not filename:
+            self.irc_client.add_status_message("Could not extract filename", 'error')
+            return
+        
+        success, msg = self.irc_client.script_engine.load_script(filename)
+        self.irc_client.add_status_message(msg, 'status' if success else 'error')
+        self.refresh_list()
+        
+        # Restore selection after refresh
+        try:
+            # Find the script in the refreshed list
+            for i in range(self.script_listbox.size()):
+                item = self.script_listbox.get(i)
+                if filename in item:
+                    self.script_listbox.selection_set(i)
+                    self.script_listbox.see(i)
+                    self.on_script_select(None)  # Update button states
+                    break
+        except:
+            pass
+    
+    def load_from_file(self):
+        """Load a script from a file dialog"""
+        # Open file dialog
+        filepath = filedialog.askopenfilename(
+            title="Select Script File",
+            filetypes=[
+                ("Script Files", "*.rsx *.txt"),
+                ("All Files", "*.*")
+            ],
+            initialdir=os.path.expanduser("~")
+        )
+        
+        if not filepath:
+            return  # User cancelled
+        
+        # Load the script
+        success, msg = self.irc_client.script_engine.load_script_from_path(filepath)
+        if success:
+            filename = os.path.basename(filepath)
+            self.irc_client.add_status_message(f"Loaded script from file: {filename}", 'status')
+        else:
+            self.irc_client.add_status_message(f"Error loading script: {msg}", 'error')
+        
+        # Refresh the list to show the newly loaded script
+        self.refresh_list()
+    
+    def unload_selected(self):
+        """Unload the selected script"""
+        # Get current selection directly from listbox
+        selection = self.script_listbox.curselection()
+        if not selection:
+            self.irc_client.add_status_message("No script selected", 'error')
+            return
+        
+        # Extract filename from display name (remove status symbol and [External] tag)
+        display_name = self.script_listbox.get(selection[0])
+        parts = display_name.split(' ', 1)
+        if len(parts) > 1:
+            filename = parts[1]
+            # Remove [External] tag if present
+            if filename.endswith(' [External]'):
+                filename = filename[:-12]
+        else:
+            filename = display_name
+        
+        if not filename:
+            self.irc_client.add_status_message("Could not extract filename", 'error')
+            return
+        
+        success, msg = self.irc_client.script_engine.unload_script(filename)
+        self.irc_client.add_status_message(msg, 'status' if success else 'error')
+        self.refresh_list()
+        
+        # Restore selection after refresh
+        try:
+            # Find the script in the refreshed list
+            for i in range(self.script_listbox.size()):
+                item = self.script_listbox.get(i)
+                if filename in item:
+                    self.script_listbox.selection_set(i)
+                    self.script_listbox.see(i)
+                    self.on_script_select(None)  # Update button states
+                    break
+        except:
+            pass
+    
+    def reload_selected(self):
+        """Reload the selected script"""
+        # Get current selection directly from listbox
+        selection = self.script_listbox.curselection()
+        if not selection:
+            self.irc_client.add_status_message("No script selected", 'error')
+            return
+        
+        # Extract filename from display name (remove status symbol and [External] tag)
+        display_name = self.script_listbox.get(selection[0])
+        parts = display_name.split(' ', 1)
+        if len(parts) > 1:
+            filename = parts[1]
+            # Remove [External] tag if present
+            if filename.endswith(' [External]'):
+                filename = filename[:-12]
+        else:
+            filename = display_name
+        
+        # Check if this is an external script (has a stored path)
+        script_paths = getattr(self.irc_client.script_engine, 'script_paths', {})
+        external_path = script_paths.get(filename)
+        
+        # Unload first if loaded
+        script_info = self.script_info.get(filename, {})
+        if script_info.get('loaded', False):
+            self.irc_client.script_engine.unload_script(filename)
+        
+        # Load it again - use external path if available
+        if external_path and os.path.exists(external_path):
+            success, msg = self.irc_client.script_engine.load_script_from_path(external_path)
+        else:
+            success, msg = self.irc_client.script_engine.load_script(filename)
+        
+        if not filename:
+            self.irc_client.add_status_message("Could not extract filename", 'error')
+            return
+        
+        # Unload first if loaded
+        script_info = self.script_info.get(filename, {})
+        if script_info.get('loaded', False):
+            self.irc_client.script_engine.unload_script(filename)
+        
+        # Load it again
+        success, msg = self.irc_client.script_engine.load_script(filename)
+        self.irc_client.add_status_message(f"Reloaded {filename}: {msg}", 'status' if success else 'error')
+        self.refresh_list()
+        
+        # Restore selection after refresh
+        try:
+            # Find the script in the refreshed list
+            for i in range(self.script_listbox.size()):
+                item = self.script_listbox.get(i)
+                if filename in item:
+                    self.script_listbox.selection_set(i)
+                    self.script_listbox.see(i)
+                    self.on_script_select(None)  # Update button states
+                    break
+        except:
+            pass
+    
+    def reload_all(self):
+        """Reload all scripts"""
+        self.irc_client.script_engine.clear_all()
+        results = self.irc_client.script_engine.load_all_scripts()
+        for filename, success, msg in results:
+            self.irc_client.add_status_message(f"{filename}: {msg}", 'status' if success else 'error')
+        self.irc_client.add_status_message(f"Reloaded {len(results)} script(s)")
+        self.refresh_list()
+    
+    def unload_all(self):
+        """Unload all scripts"""
+        self.irc_client.script_engine.clear_all()
+        self.irc_client.add_status_message("All scripts unloaded")
+        self.refresh_list()
+    
+    def on_closing(self):
+        """Handle window closing"""
+        # Remove reference from client if stored
+        if hasattr(self.irc_client, 'script_manager_window') and self.irc_client.script_manager_window == self:
+            self.irc_client.script_manager_window = None
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+
+
+class ServicesWindow(tk.Toplevel):
+    """GUI window for IRC services - NickServ and ChanServ"""
+    
+    def __init__(self, irc_client, theme):
+        super().__init__(irc_client.window)
+        self.irc_client = irc_client
+        self.theme = theme
+        
+        self.title("Services")
+        self.geometry("600x500")
+        self.transient(irc_client.window)
+        self.grab_set()
+        
+        # Force dark black theme (same as Script Manager)
+        bg_color = 'black'
+        fg_color = 'white'
+        button_bg = '#1a1a1a'
+        button_hover_bg = '#2a2a2a'
+        button_active_bg = '#3a3a3a'
+        entry_bg = '#0a0a0a'
+        entry_fg = 'white'
+        
+        self.configure(bg=bg_color)
+        
+        # Configure ttk styles for dark theme
+        style = ttk.Style()
+        style.configure('Services.TFrame', background=bg_color)
+        style.configure('Services.TLabel', background=bg_color, foreground=fg_color)
+        style.configure('Services.TButton', 
+                       background=button_bg, 
+                       foreground=fg_color,
+                       borderwidth=1,
+                       focuscolor='none',
+                       relief='flat')
+        style.map('Services.TButton',
+                 background=[('active', button_hover_bg), 
+                            ('pressed', button_active_bg)],
+                 foreground=[('active', fg_color), 
+                            ('pressed', fg_color)],
+                 bordercolor=[('active', '#444444'),
+                            ('pressed', '#555555')])
+        style.configure('Services.TEntry',
+                         fieldbackground=entry_bg,
+                         foreground=entry_fg,
+                         borderwidth=1,
+                         bordercolor='#333333')
+        style.map('Services.TEntry',
+                 fieldbackground=[('focus', '#1a1a1a')],
+                 bordercolor=[('focus', '#555555')])
+        # Configure notebook with visible tabs
+        # First, copy the default tab layout to ensure tabs are visible
+        try:
+            # Get the default tab layout
+            default_layout = style.layout('TNotebook.Tab')
+            # Apply it to our custom style
+            style.layout('Services.TNotebook.Tab', default_layout)
+        except:
+            # If that fails, define a basic layout
+            style.layout('Services.TNotebook.Tab', [
+                ('Notebook.tab', {
+                    'sticky': 'nswe',
+                    'children': [
+                        ('Notebook.padding', {
+                            'sticky': 'nswe',
+                            'children': [
+                                ('Notebook.label', {'sticky': 'nswe'})
+                            ]
+                        })
+                    ]
+                })
+            ])
+        
+        style.configure('Services.TNotebook', background=bg_color, borderwidth=1, bordercolor='#333333')
+        
+        # Make tabs very visible with better contrast - unselected tabs are lighter gray
+        style.configure('Services.TNotebook.Tab', 
+                       background='#2a2a2a',  # Lighter gray for unselected tabs
+                       foreground=fg_color,
+                       padding=[20, 10],
+                       borderwidth=1,
+                       relief=tk.RAISED)
+        style.map('Services.TNotebook.Tab',
+                 background=[('selected', '#1a1a1a'), ('active', button_hover_bg)],  # Darker for selected
+                 foreground=[('selected', fg_color), ('active', fg_color)],
+                 bordercolor=[('selected', fg_color), ('active', '#555555')],
+                 expand=[('selected', [1, 1, 1, 0])])
+        
+        # Main container
+        main_frame = ttk.Frame(self, padding=10, style='Services.TFrame')
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(main_frame, style='Services.TNotebook')
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # NickServ tab
+        nickserv_frame = ttk.Frame(self.notebook, padding=10, style='Services.TFrame')
+        self.notebook.add(nickserv_frame, text="NickServ")
+        self.create_nickserv_tab(nickserv_frame, bg_color, fg_color, entry_bg, entry_fg, 
+                                 button_bg, button_hover_bg, button_active_bg)
+        
+        # ChanServ tab
+        chanserv_frame = ttk.Frame(self.notebook, padding=10, style='Services.TFrame')
+        self.notebook.add(chanserv_frame, text="ChanServ")
+        self.create_chanserv_tab(chanserv_frame, bg_color, fg_color, entry_bg, entry_fg,
+                                button_bg, button_hover_bg, button_active_bg)
+        
+        # Bottom buttons
+        bottom_frame = ttk.Frame(main_frame, style='Services.TFrame')
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(10, 0))
+        
+        ttk.Button(bottom_frame, text="Close", command=self.on_closing, 
+                  style='Services.TButton').pack(side=tk.RIGHT, padx=5)
+        
+        # Handle window closing
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def create_nickserv_tab(self, parent, bg_color, fg_color, entry_bg, entry_fg,
+                            button_bg, button_hover_bg, button_active_bg):
+        """Create the NickServ tab content"""
+        # Tab title header
+        title_header = tk.Label(parent, text="NickServ", 
+                               bg=bg_color, fg=fg_color, 
+                               font=('TkDefaultFont', 14, 'bold'))
+        title_header.pack(pady=(0, 15))
+        
+        # Register section
+        register_frame = tk.Frame(parent, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        register_frame.pack(fill=tk.X, pady=(0, 10))
+        register_inner = tk.Frame(register_frame, bg=bg_color)
+        register_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        title_label = tk.Label(register_inner, text="Register", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        content_frame = tk.Frame(register_inner, bg=bg_color)
+        content_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        tk.Label(content_frame, text="Password:", bg=bg_color, fg=fg_color).grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.ns_register_pass = ttk.Entry(content_frame, width=30, show="*", style='Services.TEntry')
+        self.ns_register_pass.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        tk.Label(content_frame, text="Email:", bg=bg_color, fg=fg_color).grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.ns_register_email = ttk.Entry(content_frame, width=30, style='Services.TEntry')
+        self.ns_register_email.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        content_frame.columnconfigure(1, weight=1)
+        
+        ttk.Button(register_inner, text="Register", 
+                  command=self.nickserv_register, style='Services.TButton').pack(pady=(0, 10), padx=10)
+        
+        # Identify section
+        identify_frame = tk.Frame(parent, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        identify_frame.pack(fill=tk.X, pady=(0, 10))
+        identify_inner = tk.Frame(identify_frame, bg=bg_color)
+        identify_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        title_label = tk.Label(identify_inner, text="Identify", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        content_frame = tk.Frame(identify_inner, bg=bg_color)
+        content_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        tk.Label(content_frame, text="Password:", bg=bg_color, fg=fg_color).grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.ns_identify_pass = ttk.Entry(content_frame, width=30, show="*", style='Services.TEntry')
+        self.ns_identify_pass.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        content_frame.columnconfigure(1, weight=1)
+        
+        ttk.Button(identify_inner, text="Identify", 
+                  command=self.nickserv_identify, style='Services.TButton').pack(pady=(0, 10), padx=10)
+        
+        # Other commands section
+        other_frame = tk.Frame(parent, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        other_frame.pack(fill=tk.BOTH, expand=True)
+        other_inner = tk.Frame(other_frame, bg=bg_color)
+        other_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        title_label = tk.Label(other_inner, text="Other Commands", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        content_frame = tk.Frame(other_inner, bg=bg_color)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        
+        # Quick command buttons
+        buttons_frame = tk.Frame(content_frame, bg=bg_color)
+        buttons_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(buttons_frame, text="Info", command=lambda: self.nickserv_command("INFO"), 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(buttons_frame, text="Status", command=lambda: self.nickserv_command("STATUS"), 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(buttons_frame, text="Ghost", command=self.nickserv_ghost, 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(buttons_frame, text="Recover", command=self.nickserv_recover, 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        
+        # Custom command
+        tk.Label(content_frame, text="Custom Command:", bg=bg_color, fg=fg_color).pack(anchor=tk.W, pady=(10, 2))
+        custom_frame = tk.Frame(content_frame, bg=bg_color)
+        custom_frame.pack(fill=tk.X, pady=2)
+        
+        self.ns_custom_cmd = ttk.Entry(custom_frame, style='Services.TEntry')
+        self.ns_custom_cmd.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(custom_frame, text="Send", command=self.nickserv_custom, 
+                  style='Services.TButton').pack(side=tk.LEFT)
+    
+    def create_chanserv_tab(self, parent, bg_color, fg_color, entry_bg, entry_fg,
+                            button_bg, button_hover_bg, button_active_bg):
+        """Create the ChanServ tab content"""
+        # Tab title header
+        title_header = tk.Label(parent, text="ChanServ", 
+                               bg=bg_color, fg=fg_color, 
+                               font=('TkDefaultFont', 14, 'bold'))
+        title_header.pack(pady=(0, 15))
+        
+        # Identify section
+        identify_frame = tk.Frame(parent, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        identify_frame.pack(fill=tk.X, pady=(0, 10))
+        identify_inner = tk.Frame(identify_frame, bg=bg_color)
+        identify_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        title_label = tk.Label(identify_inner, text="Identify", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        content_frame = tk.Frame(identify_inner, bg=bg_color)
+        content_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        tk.Label(content_frame, text="Channel:", bg=bg_color, fg=fg_color).grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.cs_channel = ttk.Entry(content_frame, width=30, style='Services.TEntry')
+        self.cs_channel.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        tk.Label(content_frame, text="Password:", bg=bg_color, fg=fg_color).grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.cs_identify_pass = ttk.Entry(content_frame, width=30, show="*", style='Services.TEntry')
+        self.cs_identify_pass.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
+        
+        content_frame.columnconfigure(1, weight=1)
+        
+        ttk.Button(identify_inner, text="Identify", 
+                  command=self.chanserv_identify, style='Services.TButton').pack(pady=(0, 10), padx=10)
+        
+        # Other commands section
+        other_frame = tk.Frame(parent, bg=fg_color, relief=tk.FLAT, borderwidth=1)
+        other_frame.pack(fill=tk.BOTH, expand=True)
+        other_inner = tk.Frame(other_frame, bg=bg_color)
+        other_inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        title_label = tk.Label(other_inner, text="Other Commands", 
+                              bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9, 'bold'))
+        title_label.pack(anchor=tk.W, padx=10, pady=(10, 5))
+        
+        content_frame = tk.Frame(other_inner, bg=bg_color)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        
+        # Quick command buttons
+        buttons_frame = tk.Frame(content_frame, bg=bg_color)
+        buttons_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(buttons_frame, text="Info", command=self.chanserv_info, 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(buttons_frame, text="List", command=self.chanserv_list, 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(buttons_frame, text="Access", command=self.chanserv_access, 
+                  style='Services.TButton').pack(side=tk.LEFT, padx=2)
+        
+        # Custom command
+        tk.Label(content_frame, text="Custom Command:", bg=bg_color, fg=fg_color).pack(anchor=tk.W, pady=(10, 2))
+        custom_frame = tk.Frame(content_frame, bg=bg_color)
+        custom_frame.pack(fill=tk.X, pady=2)
+        
+        self.cs_custom_cmd = ttk.Entry(custom_frame, style='Services.TEntry')
+        self.cs_custom_cmd.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(custom_frame, text="Send", command=self.chanserv_custom, 
+                  style='Services.TButton').pack(side=tk.LEFT)
+    
+    def get_current_server(self):
+        """Get the current server or first available server"""
+        if self.irc_client.current_server:
+            return self.irc_client.current_server
+        elif self.irc_client.connections:
+            return list(self.irc_client.connections.keys())[0]
+        return None
+    
+    # NickServ commands
+    def nickserv_register(self):
+        """Register with NickServ"""
+        password = self.ns_register_pass.get().strip()
+        email = self.ns_register_email.get().strip()
+        server = self.get_current_server()
+        
+        if not password:
+            self.irc_client.add_status_message("Password is required", 'error')
+            return
+        if not email:
+            self.irc_client.add_status_message("Email is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        # Use handle_command to process /nickserv command (same as typing it)
+        self.irc_client.handle_command(f"/nickserv REGISTER {password} {email}", None)
+        self.ns_register_pass.delete(0, tk.END)
+        self.ns_register_email.delete(0, tk.END)
+    
+    def nickserv_identify(self):
+        """Identify with NickServ"""
+        password = self.ns_identify_pass.get().strip()
+        server = self.get_current_server()
+        
+        if not password:
+            self.irc_client.add_status_message("Password is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        # Use handle_command to process /nickserv command (same as typing it)
+        self.irc_client.handle_command(f"/nickserv IDENTIFY {password}", None)
+        self.ns_identify_pass.delete(0, tk.END)
+    
+    def nickserv_command(self, command):
+        """Send a NickServ command"""
+        server = self.get_current_server()
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        # Use handle_command to process /nickserv command (same as typing it)
+        self.irc_client.handle_command(f"/nickserv {command}", None)
+    
+    def nickserv_ghost(self):
+        """Ghost a nickname"""
+        server = self.get_current_server()
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        # Get current nickname
+        if server in self.irc_client.connections:
+            nick = self.irc_client.connections[server].get('nickname', '')
+            if nick:
+                # Use handle_command to process /nickserv command (same as typing it)
+                self.irc_client.handle_command(f"/nickserv GHOST {nick}", None)
+            else:
+                self.irc_client.add_status_message("Could not determine current nickname", 'error')
+        else:
+            self.irc_client.add_status_message("Not connected to server", 'error')
+    
+    def nickserv_recover(self):
+        """Recover a nickname"""
+        password = self.ns_identify_pass.get().strip()
+        server = self.get_current_server()
+        
+        if not password:
+            self.irc_client.add_status_message("Password is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        # Get current nickname
+        if server in self.irc_client.connections:
+            nick = self.irc_client.connections[server].get('nickname', '')
+            if nick:
+                # Use handle_command to process /nickserv command (same as typing it)
+                self.irc_client.handle_command(f"/nickserv RECOVER {nick} {password}", None)
+            else:
+                self.irc_client.add_status_message("Could not determine current nickname", 'error')
+        else:
+            self.irc_client.add_status_message("Not connected to server", 'error')
+    
+    def nickserv_custom(self):
+        """Send a custom NickServ command"""
+        command = self.ns_custom_cmd.get().strip()
+        server = self.get_current_server()
+        
+        if not command:
+            self.irc_client.add_status_message("Command is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        # Use handle_command to process /nickserv command (same as typing it)
+        self.irc_client.handle_command(f"/nickserv {command}", None)
+        self.ns_custom_cmd.delete(0, tk.END)
+    
+    # ChanServ commands
+    def chanserv_identify(self):
+        """Identify with ChanServ"""
+        channel = self.cs_channel.get().strip()
+        password = self.cs_identify_pass.get().strip()
+        server = self.get_current_server()
+        
+        if not channel:
+            self.irc_client.add_status_message("Channel is required", 'error')
+            return
+        if not password:
+            self.irc_client.add_status_message("Password is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        # Ensure channel starts with #
+        if not channel.startswith('#'):
+            channel = '#' + channel
+        
+        # Use handle_command to process /chanserv command (same as typing it)
+        self.irc_client.handle_command(f"/chanserv IDENTIFY {channel} {password}", None)
+        self.cs_channel.delete(0, tk.END)
+        self.cs_identify_pass.delete(0, tk.END)
+    
+    def chanserv_info(self):
+        """Get ChanServ info for a channel"""
+        channel = self.cs_channel.get().strip()
+        server = self.get_current_server()
+        
+        if not channel:
+            self.irc_client.add_status_message("Channel is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        if not channel.startswith('#'):
+            channel = '#' + channel
+        
+        # Use handle_command to process /chanserv command (same as typing it)
+        self.irc_client.handle_command(f"/chanserv INFO {channel}", None)
+    
+    def chanserv_list(self):
+        """List channels registered to you"""
+        server = self.get_current_server()
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        # Use handle_command to process /chanserv command (same as typing it)
+        self.irc_client.handle_command("/chanserv LIST", None)
+    
+    def chanserv_access(self):
+        """List access list for a channel"""
+        channel = self.cs_channel.get().strip()
+        server = self.get_current_server()
+        
+        if not channel:
+            self.irc_client.add_status_message("Channel is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        if not channel.startswith('#'):
+            channel = '#' + channel
+        
+        # Use handle_command to process /chanserv command (same as typing it)
+        self.irc_client.handle_command(f"/chanserv ACCESS {channel} LIST", None)
+    
+    def chanserv_custom(self):
+        """Send a custom ChanServ command"""
+        command = self.cs_custom_cmd.get().strip()
+        server = self.get_current_server()
+        
+        if not command:
+            self.irc_client.add_status_message("Command is required", 'error')
+            return
+        if not server:
+            self.irc_client.add_status_message("Not connected to any server", 'error')
+            return
+        
+        # Use handle_command to process /chanserv command (same as typing it)
+        self.irc_client.handle_command(f"/chanserv {command}", None)
+        self.cs_custom_cmd.delete(0, tk.END)
+    
+    def on_closing(self):
+        """Handle window closing"""
+        if hasattr(self.irc_client, 'services_window') and self.irc_client.services_window == self:
+            self.irc_client.services_window = None
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+
+
+class ThemeSettingsWindow(tk.Toplevel):
+    """GUI window for theme customization - colors, fonts, etc."""
+    
+    def __init__(self, irc_client):
+        super().__init__(irc_client.window)
+        self.irc_client = irc_client
+        
+        self.title("Theme Settings")
+        self.geometry("900x750")
+        self.transient(irc_client.window)
+        self.grab_set()
+        
+        # Modern dark theme colors
+        bg_color = '#0d1117'
+        fg_color = '#c9d1d9'
+        button_bg = '#21262d'
+        button_hover_bg = '#30363d'
+        button_active_bg = '#484f58'
+        entry_bg = '#161b22'
+        entry_fg = '#c9d1d9'
+        border_color = '#30363d'
+        accent_color = '#58a6ff'
+        
+        self.configure(bg=bg_color)
+        
+        # Configure ttk styles for modern dark theme
+        style = ttk.Style()
+        style.theme_use('default')
+        
+        # Configure notebook with visible tabs
+        try:
+            default_tab_layout = style.layout('TNotebook.Tab')
+            style.layout('ThemeSettings.TNotebook.Tab', default_tab_layout)
+        except:
+            style.layout('ThemeSettings.TNotebook.Tab', [
+                ('Notebook.tab', {
+                    'sticky': 'nswe',
+                    'children': [
+                        ('Notebook.padding', {
+                            'sticky': 'nswe',
+                            'children': [
+                                ('Notebook.label', {'sticky': 'nswe'})
+                            ]
+                        })
+                    ]
+                })
+            ])
+        
+        style.configure('ThemeSettings.TNotebook', background=bg_color, borderwidth=0)
+        style.configure('ThemeSettings.TNotebook.Tab', 
+                       background='#161b22',
+                       foreground=fg_color,
+                       padding=[20, 12],
+                       borderwidth=1,
+                       relief=tk.FLAT)
+        style.map('ThemeSettings.TNotebook.Tab',
+                 background=[('selected', bg_color), ('active', button_hover_bg)],
+                 foreground=[('selected', accent_color), ('active', fg_color)],
+                 expand=[('selected', [1, 1, 1, 0])])
+        
+        style.configure('ThemeSettings.TFrame', background=bg_color)
+        style.configure('ThemeSettings.TLabel', background=bg_color, foreground=fg_color, font=('TkDefaultFont', 10))
+        style.configure('ThemeSettings.TRadiobutton', background=bg_color, foreground=fg_color, font=('TkDefaultFont', 10))
+        style.configure('ThemeSettings.TButton', 
+                       background=button_bg,
+                       foreground=fg_color,
+                       borderwidth=1,
+                       relief=tk.FLAT,
+                       padding=[15, 8],
+                       font=('TkDefaultFont', 10, 'bold'))
+        style.map('ThemeSettings.TButton',
+                  background=[('active', button_hover_bg), ('pressed', button_active_bg)],
+                  foreground=[('active', accent_color)])
+        style.configure('ThemeSettings.TEntry', 
+                       fieldbackground=entry_bg, 
+                       foreground=entry_fg,
+                       borderwidth=1,
+                       bordercolor=border_color,
+                       padding=[8, 6])
+        style.map('ThemeSettings.TEntry',
+                 fieldbackground=[('focus', '#1c2128')],
+                 bordercolor=[('focus', accent_color)])
+        style.configure('ThemeSettings.TCombobox',
+                       fieldbackground=entry_bg,
+                       foreground=entry_fg,
+                       background=entry_bg,
+                       borderwidth=1,
+                       bordercolor=border_color)
+        style.map('ThemeSettings.TCombobox',
+                 fieldbackground=[('focus', '#1c2128')],
+                 bordercolor=[('focus', accent_color)])
+        
+        # Configure LabelFrame
+        try:
+            default_layout = style.layout('TLabelFrame')
+            style.layout('ThemeSettings.TLabelFrame', default_layout)
+        except:
+            style.layout('ThemeSettings.TLabelFrame', [
+                ('Labelframe.border', {
+                    'sticky': 'nswe',
+                    'children': [
+                        ('Labelframe.padding', {
+                            'sticky': 'nswe',
+                            'children': [
+                                ('Labelframe.label', {'side': 'top', 'sticky': 'w'}),
+                                ('Labelframe.focus', {'side': 'top', 'sticky': 'nswe'})
+                            ]
+                        })
+                    ]
+                })
+            ])
+        style.configure('ThemeSettings.TLabelFrame',
+                       background=bg_color,
+                       foreground=accent_color,
+                       borderwidth=1,
+                       bordercolor=border_color,
+                       font=('TkDefaultFont', 10, 'bold'))
+        
+        # Configure Scale widget using default Horizontal/Vertical styles
+        style.configure('Horizontal.TScale',
+                       background=bg_color,
+                       troughcolor=entry_bg,
+                       borderwidth=0,
+                       sliderthickness=15)
+        style.map('Horizontal.TScale',
+                 background=[('active', accent_color)])
+        
+        # Configure scrollbar
+        style.configure('Vertical.TScrollbar',
+                       background='#30363d',
+                       troughcolor=bg_color,
+                       borderwidth=0,
+                       arrowcolor=fg_color,
+                       darkcolor=bg_color,
+                       lightcolor=bg_color,
+                       width=12)
+        style.map('Vertical.TScrollbar',
+                 background=[('active', '#484f58')])
+        
+        # Initialize color_vars before tabs are created
+        self.color_vars = {}
+        
+        # Main container
+        main_frame = ttk.Frame(self, style='ThemeSettings.TFrame')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        # Create notebook for tabs with custom style
+        notebook = ttk.Notebook(main_frame, style='ThemeSettings.TNotebook')
+        notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Theme Selection Tab
+        theme_tab = ttk.Frame(notebook, style='ThemeSettings.TFrame')
+        notebook.add(theme_tab, text="🎨 Theme")
+        self.create_theme_tab(theme_tab, bg_color, fg_color, button_bg, entry_bg, entry_fg, accent_color, border_color)
+        
+        # Font Settings Tab
+        font_tab = ttk.Frame(notebook, style='ThemeSettings.TFrame')
+        notebook.add(font_tab, text="🔤 Font")
+        self.create_font_tab(font_tab, bg_color, fg_color, button_bg, entry_bg, entry_fg, accent_color, border_color)
+        
+        # Color Customization Tab
+        color_tab = ttk.Frame(notebook, style='ThemeSettings.TFrame')
+        notebook.add(color_tab, text="🎨 Colors")
+        self.create_color_tab(color_tab, bg_color, fg_color, button_bg, entry_bg, entry_fg, accent_color, border_color)
+        
+        # Preview Tab
+        preview_tab = ttk.Frame(notebook, style='ThemeSettings.TFrame')
+        notebook.add(preview_tab, text="👁 Preview")
+        self.create_preview_tab(preview_tab, bg_color, fg_color)
+        
+        # Buttons frame at bottom with better styling
+        buttons_frame = tk.Frame(main_frame, bg=bg_color)
+        buttons_frame.pack(fill=tk.X, pady=(15, 0))
+        
+        # Left side buttons
+        left_buttons = tk.Frame(buttons_frame, bg=bg_color)
+        left_buttons.pack(side=tk.LEFT)
+        
+        apply_btn = tk.Button(left_buttons, text="Apply", command=self.apply_settings,
+                             bg=button_bg, fg=fg_color, activebackground=button_hover_bg,
+                             activeforeground=accent_color, borderwidth=1, relief=tk.FLAT,
+                             padx=20, pady=8, font=('TkDefaultFont', 10, 'bold'),
+                             cursor='hand2')
+        apply_btn.pack(side=tk.LEFT, padx=5)
+        
+        save_btn = tk.Button(left_buttons, text="Save", command=self.save_settings,
+                            bg=accent_color, fg='white', activebackground='#4493f8',
+                            activeforeground='white', borderwidth=0, relief=tk.FLAT,
+                            padx=20, pady=8, font=('TkDefaultFont', 10, 'bold'),
+                            cursor='hand2')
+        save_btn.pack(side=tk.LEFT, padx=5)
+        
+        reset_btn = tk.Button(left_buttons, text="Reset", command=self.reset_settings,
+                             bg=button_bg, fg=fg_color, activebackground=button_hover_bg,
+                             activeforeground='#f85149', borderwidth=1, relief=tk.FLAT,
+                             padx=20, pady=8, font=('TkDefaultFont', 10, 'bold'),
+                             cursor='hand2')
+        reset_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Right side close button
+        close_btn = tk.Button(buttons_frame, text="Close", command=self.on_closing,
+                             bg=button_bg, fg=fg_color, activebackground=button_hover_bg,
+                             activeforeground=fg_color, borderwidth=1, relief=tk.FLAT,
+                             padx=20, pady=8, font=('TkDefaultFont', 10, 'bold'),
+                             cursor='hand2')
+        close_btn.pack(side=tk.RIGHT)
+        
+        # Handle window closing
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def create_theme_tab(self, parent, bg_color, fg_color, button_bg, entry_bg, entry_fg, accent_color, border_color):
+        """Create theme selection tab"""
+        # Scrollable container
+        canvas = tk.Canvas(parent, bg=bg_color, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='ThemeSettings.TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Theme selection frame with better styling
+        theme_frame = ttk.LabelFrame(scrollable_frame, text="Select Theme", style='ThemeSettings.TLabelFrame', padding=20)
+        theme_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        self.theme_var = tk.StringVar(value=self.irc_client.preferences.get('theme', 'default'))
+        
+        # Create theme cards instead of simple radio buttons
+        themes_container = ttk.Frame(theme_frame, style='ThemeSettings.TFrame')
+        themes_container.pack(fill=tk.BOTH, expand=True)
+        
+        for i, theme_name in enumerate(self.irc_client.themes.keys()):
+            # Create a card-like frame for each theme
+            card_frame = tk.Frame(themes_container, bg=entry_bg, relief=tk.FLAT, borderwidth=1)
+            card_frame.pack(fill=tk.X, padx=5, pady=8)
+            
+            # Radio button
+            radio = ttk.Radiobutton(
+                card_frame,
+                text=theme_name.capitalize(),
+                variable=self.theme_var,
+                value=theme_name,
+                style='ThemeSettings.TRadiobutton',
+                command=self.on_theme_change
+            )
+            radio.pack(side=tk.LEFT, padx=15, pady=12)
+            
+            # Theme preview colors
+            preview_frame = tk.Frame(card_frame, bg=entry_bg)
+            preview_frame.pack(side=tk.RIGHT, padx=15, pady=8)
+            
+            theme = self.irc_client.themes.get(theme_name, {})
+            preview_colors = [
+                theme.get('bg', '#000000'),
+                theme.get('fg', '#ffffff'),
+                theme.get('nick', '#0000ff'),
+                theme.get('join', '#00ff00'),
+                theme.get('part', '#ff0000')
+            ]
+            
+            for color in preview_colors:
+                color_box = tk.Frame(preview_frame, bg=color, width=20, height=20, relief=tk.RAISED, borderwidth=1)
+                color_box.pack(side=tk.LEFT, padx=2)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+    def create_font_tab(self, parent, bg_color, fg_color, button_bg, entry_bg, entry_fg, accent_color, border_color):
+        """Create font settings tab"""
+        # Scrollable container
+        canvas = tk.Canvas(parent, bg=bg_color, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='ThemeSettings.TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Font family selection
+        font_family_frame = ttk.LabelFrame(scrollable_frame, text="Font Family", style='ThemeSettings.TLabelFrame', padding=20)
+        font_family_frame.pack(fill=tk.X, padx=15, pady=15)
+        
+        # Common monospace fonts for IRC
+        font_families = ['Courier', 'Courier New', 'Consolas', 'Monaco', 'Menlo', 'DejaVu Sans Mono', 'Liberation Mono', 'Lucida Console', 'Fira Code', 'Source Code Pro', 'Roboto Mono']
+        
+        self.font_family_var = tk.StringVar(value=self.irc_client.preferences.get('font_family', 'Courier'))
+        
+        # Label
+        ttk.Label(font_family_frame, text="Choose a font family:", style='ThemeSettings.TLabel').pack(anchor=tk.W, pady=(0, 10))
+        
+        font_family_combo = ttk.Combobox(font_family_frame, textvariable=self.font_family_var, values=font_families, state='readonly', style='ThemeSettings.TCombobox', width=30)
+        font_family_combo.pack(fill=tk.X, pady=5)
+        font_family_combo.bind('<<ComboboxSelected>>', lambda e: self.update_preview())
+        
+        # Font preview
+        preview_label = ttk.Label(font_family_frame, text="Preview: The quick brown fox jumps over the lazy dog", 
+                                 style='ThemeSettings.TLabel', font=(self.font_family_var.get(), 12))
+        preview_label.pack(anchor=tk.W, pady=(10, 0))
+        
+        def update_preview_label(*args):
+            try:
+                preview_label.config(font=(self.font_family_var.get(), 12))
+            except:
+                pass
+        self.font_family_var.trace('w', update_preview_label)
+        
+        # Font size selection
+        font_size_frame = ttk.LabelFrame(scrollable_frame, text="Font Size", style='ThemeSettings.TLabelFrame', padding=20)
+        font_size_frame.pack(fill=tk.X, padx=15, pady=15)
+        
+        self.font_size_var = tk.IntVar(value=self.irc_client.preferences.get('font_size', 10))
+        
+        # Size controls
+        size_controls = ttk.Frame(font_size_frame, style='ThemeSettings.TFrame')
+        size_controls.pack(fill=tk.X)
+        
+        ttk.Label(size_controls, text="8", style='ThemeSettings.TLabel').pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Scale widget for font size
+        font_size_scale = ttk.Scale(size_controls, from_=8, to=24, variable=self.font_size_var, 
+                                   orient=tk.HORIZONTAL,
+                                   command=lambda v: self.update_preview())
+        font_size_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+        
+        ttk.Label(size_controls, text="24", style='ThemeSettings.TLabel').pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Display current font size with larger preview
+        size_display_frame = tk.Frame(font_size_frame, bg=entry_bg, relief=tk.FLAT, borderwidth=1)
+        size_display_frame.pack(fill=tk.X, pady=(15, 0))
+        
+        self.font_size_label = tk.Label(size_display_frame, text=f"Current Size: {self.font_size_var.get()}pt", 
+                                       bg=entry_bg, fg=accent_color, font=('TkDefaultFont', 11, 'bold'))
+        self.font_size_label.pack(pady=15)
+        
+        # Large preview text
+        self.font_preview_text = tk.Label(size_display_frame, 
+                                         text="Aa Bb Cc 123 !@#",
+                                         bg=entry_bg, fg=fg_color,
+                                         font=(self.font_family_var.get(), self.font_size_var.get()))
+        self.font_preview_text.pack(pady=(0, 15))
+        
+        # Update label and preview when scale changes
+        def update_font_size_label(*args):
+            size = self.font_size_var.get()
+            self.font_size_label.config(text=f"Current Size: {size}pt")
+            try:
+                self.font_preview_text.config(font=(self.font_family_var.get(), size))
+            except:
+                pass
+            self.update_preview()
+        self.font_size_var.trace('w', update_font_size_label)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+    def create_color_tab(self, parent, bg_color, fg_color, button_bg, entry_bg, entry_fg, accent_color, border_color):
+        """Create color customization tab"""
+        # Get current theme
+        current_theme = self.theme_var.get()
+        theme = self.irc_client.themes.get(current_theme, self.irc_client.themes['default'])
+        
+        # Color customization frame
+        color_frame = ttk.LabelFrame(parent, text="Color Customization", style='ThemeSettings.TLabelFrame', padding=20)
+        color_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        # Scrollable frame for colors
+        canvas = tk.Canvas(color_frame, bg=bg_color, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(color_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style='ThemeSettings.TFrame')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Color elements to customize - organized by category
+        # Note: self.color_vars is initialized in __init__ to avoid AttributeError
+        color_categories = [
+            ('Basic', [
+                ('bg', 'Background'),
+                ('fg', 'Foreground'),
+                ('message', 'Message Text')
+            ]),
+            ('Events', [
+                ('join', 'Join'),
+                ('part', 'Part'),
+                ('quit', 'Quit'),
+                ('kick', 'Kick')
+            ]),
+            ('Users', [
+                ('nick', 'Nickname'),
+                ('username', 'Username'),
+                ('my_username', 'My Username')
+            ]),
+            ('Actions', [
+                ('action', 'Action (/me)'),
+                ('ban', 'Ban'),
+                ('op', 'Operator'),
+                ('deop', 'Deop'),
+                ('voice', 'Voice'),
+                ('devoice', 'Devoice')
+            ]),
+            ('System', [
+                ('timestamp', 'Timestamp'),
+                ('status', 'Status'),
+                ('error', 'Error'),
+                ('notice', 'Notice')
+            ])
+        ]
+        
+        for category_name, color_elements in color_categories:
+            # Category header
+            category_header = tk.Frame(scrollable_frame, bg=entry_bg, height=30)
+            category_header.pack(fill=tk.X, pady=(15, 5))
+            category_label = tk.Label(category_header, text=category_name, 
+                                     bg=entry_bg, fg=accent_color, 
+                                     font=('TkDefaultFont', 11, 'bold'))
+            category_label.pack(side=tk.LEFT, padx=10, pady=5)
+            
+            for color_key, color_label in color_elements:
+                # Card-like row for each color
+                row_frame = tk.Frame(scrollable_frame, bg=entry_bg, relief=tk.FLAT, borderwidth=1)
+                row_frame.pack(fill=tk.X, padx=5, pady=3)
+                
+                # Label
+                label = tk.Label(row_frame, text=color_label, bg=entry_bg, fg=fg_color,
+                               font=('TkDefaultFont', 10), width=18, anchor=tk.W)
+                label.pack(side=tk.LEFT, padx=15, pady=10)
+                
+                # Color preview button (larger and more prominent)
+                color_var = tk.StringVar(value=theme.get(color_key, '#000000'))
+                self.color_vars[color_key] = color_var
+                
+                color_btn = tk.Button(row_frame, bg=color_var.get(), width=4, height=2,
+                                     relief=tk.RAISED, borderwidth=2,
+                                     command=lambda k=color_key: self.choose_color(k),
+                                     cursor='hand2')
+                color_btn.pack(side=tk.LEFT, padx=10, pady=8)
+                
+                # Color entry
+                color_entry = ttk.Entry(row_frame, textvariable=color_var, width=12, style='ThemeSettings.TEntry')
+                color_entry.pack(side=tk.LEFT, padx=10, pady=10)
+                
+                # Update button color when entry changes
+                def update_color_btn(key, btn):
+                    def update(*args):
+                        try:
+                            color = color_var.get()
+                            btn.config(bg=color)
+                            self.update_preview()
+                        except:
+                            pass
+                    return update
+                
+                color_var.trace('w', update_color_btn(color_key, color_btn))
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+    def create_preview_tab(self, parent, bg_color, fg_color):
+        """Create preview tab"""
+        preview_frame = ttk.LabelFrame(parent, text="Live Preview", style='ThemeSettings.TLabelFrame', padding=20)
+        preview_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        # Info label
+        info_label = tk.Label(preview_frame, text="This preview updates in real-time as you change settings",
+                             bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9))
+        info_label.pack(anchor=tk.W, pady=(0, 10))
+        
+        # Preview text widget with better styling
+        preview_container = tk.Frame(preview_frame, bg='#161b22', relief=tk.FLAT, borderwidth=1)
+        preview_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.preview_text = tk.Text(preview_container, wrap=tk.WORD, 
+                                    bg=bg_color, fg=fg_color,
+                                    font=(self.irc_client.preferences.get('font_family', 'Courier'), 
+                                          self.irc_client.preferences.get('font_size', 10)),
+                                    relief=tk.FLAT, borderwidth=0,
+                                    padx=15, pady=15,
+                                    selectbackground='#30363d',
+                                    selectforeground=fg_color)
+        self.preview_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        # Scrollbar for preview
+        preview_scrollbar = ttk.Scrollbar(preview_container, orient=tk.VERTICAL, command=self.preview_text.yview)
+        preview_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.preview_text.configure(yscrollcommand=preview_scrollbar.set)
+        
+        # Update preview with sample text
+        self.update_preview()
+    
+    def choose_color(self, color_key):
+        """Open color picker for a color element"""
+        current_color = self.color_vars[color_key].get()
+        color = colorchooser.askcolor(title=f"Choose {color_key} color", color=current_color)
+        if color and color[1]:  # User didn't cancel
+            self.color_vars[color_key].set(color[1])
+    
+    def on_theme_change(self):
+        """Handle theme change"""
+        current_theme = self.theme_var.get()
+        theme = self.irc_client.themes.get(current_theme, self.irc_client.themes['default'])
+        
+        # Update color variables
+        for color_key, color_var in self.color_vars.items():
+            if color_key in theme:
+                color_var.set(theme[color_key])
+        
+        self.update_preview()
+    
+    def update_preview(self):
+        """Update preview text with current settings"""
+        if not hasattr(self, 'preview_text'):
+            return
+        
+        # Get current theme colors
+        current_theme = self.theme_var.get()
+        theme = self.irc_client.themes.get(current_theme, self.irc_client.themes['default']).copy()
+        
+        # Update theme with custom colors
+        for color_key, color_var in self.color_vars.items():
+            theme[color_key] = color_var.get()
+        
+        # Get font settings
+        font_family = self.font_family_var.get()
+        font_size = self.font_size_var.get()
+        
+        # Clear preview
+        self.preview_text.delete(1.0, tk.END)
+        
+        # Configure preview text widget
+        self.preview_text.configure(
+            bg=theme.get('bg', 'black'),
+            fg=theme.get('fg', 'white'),
+            font=(font_family, font_size)
+        )
+        
+        # Configure text tags
+        tag_colors = {
+            'timestamp': theme.get('timestamp', 'gray'),
+            'join': theme.get('join', 'green'),
+            'part': theme.get('part', 'red'),
+            'quit': theme.get('quit', 'red'),
+            'nick': theme.get('nick', 'blue'),
+            'username': theme.get('username', 'gray'),
+            'my_username': theme.get('my_username', 'magenta'),
+            'message': theme.get('message', 'white'),
+            'kick': theme.get('kick', 'red'),
+            'action': theme.get('action', 'yellow'),
+            'ban': theme.get('ban', 'red'),
+            'op': theme.get('op', 'yellow'),
+            'deop': theme.get('deop', 'red'),
+            'voice': theme.get('voice', 'yellow'),
+            'devoice': theme.get('devoice', 'red'),
+            'status': theme.get('status', 'cyan'),
+            'error': theme.get('error', 'orange'),
+            'notice': theme.get('notice', 'blue')
+        }
+        
+        for tag, color in tag_colors.items():
+            self.preview_text.tag_configure(tag, foreground=color)
+        
+        # Add sample text
+        self.preview_text.insert(tk.END, "[12:34:56] ", 'timestamp')
+        self.preview_text.insert(tk.END, "User1", 'nick')
+        self.preview_text.insert(tk.END, " joined the channel\n", 'join')
+        
+        self.preview_text.insert(tk.END, "[12:34:57] ", 'timestamp')
+        self.preview_text.insert(tk.END, "User2", 'nick')
+        self.preview_text.insert(tk.END, " left the channel\n", 'part')
+        
+        self.preview_text.insert(tk.END, "[12:34:58] ", 'timestamp')
+        self.preview_text.insert(tk.END, "* User3 was kicked by Admin\n", 'kick')
+        
+        self.preview_text.insert(tk.END, "[12:34:59] ", 'timestamp')
+        self.preview_text.insert(tk.END, "User4", 'nick')
+        self.preview_text.insert(tk.END, ": Hello, this is a message!\n", 'message')
+        
+        self.preview_text.insert(tk.END, "[12:35:00] ", 'timestamp')
+        self.preview_text.insert(tk.END, "* User5", 'nick')
+        self.preview_text.insert(tk.END, " does something\n", 'action')
+        
+        self.preview_text.insert(tk.END, "[12:35:01] ", 'timestamp')
+        self.preview_text.insert(tk.END, "Status: Connected to server\n", 'status')
+        
+        self.preview_text.insert(tk.END, "[12:35:02] ", 'timestamp')
+        self.preview_text.insert(tk.END, "Error: Something went wrong\n", 'error')
+        
+        self.preview_text.insert(tk.END, "[12:35:03] ", 'timestamp')
+        self.preview_text.insert(tk.END, "Notice: This is a notice\n", 'notice')
+    
+    def apply_settings(self):
+        """Apply current settings without saving"""
+        # Apply theme
+        theme_name = self.theme_var.get()
+        
+        # Update theme with custom colors
+        if theme_name in self.irc_client.themes:
+            for color_key, color_var in self.color_vars.items():
+                self.irc_client.themes[theme_name][color_key] = color_var.get()
+        
+        # Apply font settings
+        self.irc_client.preferences['font_family'] = self.font_family_var.get()
+        self.irc_client.preferences['font_size'] = self.font_size_var.get()
+        
+        # Apply theme to all windows
+        self.irc_client.apply_theme_to_all(theme_name)
+        
+        # Apply font to all windows
+        self.apply_font_to_all()
+        
+        self.irc_client.add_status_message("Settings applied (not saved)")
+    
+    def apply_font_to_all(self):
+        """Apply font settings to all windows"""
+        font_family = self.font_family_var.get()
+        font_size = self.font_size_var.get()
+        
+        # Apply to all channel windows
+        for channel_window in self.irc_client.channel_windows.values():
+            try:
+                channel_window.chat_display.configure(font=(font_family, font_size))
+                channel_window.users_listbox.configure(font=(font_family, font_size))
+            except:
+                pass
+        
+        # Apply to all private windows
+        for private_window in self.irc_client.private_windows.values():
+            try:
+                private_window.chat_display.configure(font=(font_family, font_size))
+            except:
+                pass
+        
+        # Apply to status window
+        if self.irc_client.status_display:
+            try:
+                self.irc_client.status_display.configure(font=(font_family, font_size))
+            except:
+                pass
+    
+    def save_settings(self):
+        """Save and apply current settings"""
+        # Apply settings first
+        self.apply_settings()
+        
+        # Save preferences (could be extended to save to file)
+        self.irc_client.preferences['theme'] = self.theme_var.get()
+        self.irc_client.preferences['font_family'] = self.font_family_var.get()
+        self.irc_client.preferences['font_size'] = self.font_size_var.get()
+        
+        # Save theme colors (update the theme dictionary)
+        theme_name = self.theme_var.get()
+        if theme_name in self.irc_client.themes:
+            for color_key, color_var in self.color_vars.items():
+                self.irc_client.themes[theme_name][color_key] = color_var.get()
+        
+        self.irc_client.add_status_message("Settings saved and applied")
+    
+    def reset_settings(self):
+        """Reset to default settings"""
+        # Reset theme
+        self.theme_var.set('default')
+        
+        # Reset font
+        self.font_family_var.set('Courier')
+        self.font_size_var.set(10)
+        
+        # Reset colors to default theme
+        default_theme = self.irc_client.themes['default']
+        for color_key, color_var in self.color_vars.items():
+            if color_key in default_theme:
+                color_var.set(default_theme[color_key])
+        
+        self.update_preview()
+        self.irc_client.add_status_message("Settings reset to defaults")
+    
+    def on_closing(self):
+        """Handle window closing"""
+        if hasattr(self.irc_client, 'theme_settings_window') and self.irc_client.theme_settings_window == self:
+            self.irc_client.theme_settings_window = None
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+
+
 def main():
     # Configuration info - but don't connect automatically
     default_server = "irc.libera.chat"  # Default server
@@ -5275,7 +8118,7 @@ def main():
     # Create Tkinter root window
     root = tk.Tk()
     root.title("RootX IRC Client")
-    root.geometry("1000x700")
+    root.geometry("1200x600")
     
     # Set up dark theme for the entire application
     style = ttk.Style()

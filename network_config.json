@@ -5,5 +5,12 @@
         "nick3": "",
         "username": "PythonUser"
     },
-    "networks": []
+    "networks": [
+        {
+            "name": "liberachat",
+            "server": "irc.libera.chat",
+            "port": "6667",
+            "channels": "#gotr00t0day,#hackers,#linux,#python,#MacOSX,C++"
+        }
+    ]
 }

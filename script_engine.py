@@ -316,6 +316,7 @@ class ScriptEngine:
         # Script files
         self.scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
         self.loaded_scripts: Dict[str, str] = {}  # filename -> content
+        self.script_paths: Dict[str, str] = {}  # filename -> full path (for external scripts)
         
         # Create scripts directory if it doesn't exist
         if not os.path.exists(self.scripts_dir):
@@ -328,7 +329,7 @@ class ScriptEngine:
     # ==================== Script Loading ====================
     
     def load_script(self, filename: str) -> Tuple[bool, str]:
-        """Load a script file"""
+        """Load a script file from the scripts directory"""
         try:
             filepath = os.path.join(self.scripts_dir, filename)
             if not os.path.exists(filepath):
@@ -341,6 +342,30 @@ class ScriptEngine:
             success, msg = self.parse_script(content)
             if success:
                 self.loaded_scripts[filename] = content
+            return success, msg
+            
+        except Exception as e:
+            return False, f"Error loading script: {e}"
+    
+    def load_script_from_path(self, filepath: str) -> Tuple[bool, str]:
+        """Load a script file from any file path"""
+        try:
+            if not os.path.exists(filepath):
+                return False, f"Script file not found: {filepath}"
+            
+            # Get just the filename for tracking
+            filename = os.path.basename(filepath)
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Parse the script
+            success, msg = self.parse_script(content)
+            if success:
+                # Store the filename and content
+                self.loaded_scripts[filename] = content
+                # Store the full path mapping for external scripts
+                self.script_paths[filename] = filepath
             return success, msg
             
         except Exception as e:
@@ -1790,4 +1815,37 @@ class ScriptEngine:
         self.timers.clear()
         self.local_vars.clear()
         self.loaded_scripts.clear()
+    
+    def unload_script(self, filename: str) -> Tuple[bool, str]:
+        """Unload a specific script by removing it and reloading all others"""
+        if filename not in self.loaded_scripts:
+            return False, f"Script not loaded: {filename}"
+        
+        try:
+            # Save the list of scripts to reload before removing the target
+            scripts_to_reload = [name for name in self.loaded_scripts.keys() if name != filename]
+            
+            # Clear all and reload remaining scripts
+            
+            # Clear everything
+            for timer in self.timers.values():
+                if timer.timer_id:
+                    try:
+                        self.irc_client.window.after_cancel(timer.timer_id)
+                    except:
+                        pass
+            
+            self.events.clear()
+            self.aliases.clear()
+            self.timers.clear()
+            self.local_vars.clear()
+            self.loaded_scripts.clear()
+            
+            # Reload all remaining scripts
+            for script_name in scripts_to_reload:
+                self.load_script(script_name)
+            
+            return True, f"Script unloaded: {filename}"
+        except Exception as e:
+            return False, f"Error unloading script: {e}"
 

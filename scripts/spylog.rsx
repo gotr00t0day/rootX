@@ -7,10 +7,14 @@
 ;
 ; ========================================
 
-; Log all texts
+
+on JOIN:*:#:{
+    write logs/join.log [$time] $server $nick ($address) JOIN $chan
+}
+
 on TEXT:*:#:{
     if ($nick != $me) {
-        write logs/chatlog.txt [$time] $nick ($address): $text
+        write logs/chatlog.log [$time] $server $chan $nick ($address): $text
     }
 }
 
