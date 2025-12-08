@@ -4725,19 +4725,49 @@ class IRCClient:
             
             # Make the socket keep-alive with aggressive settings
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            # On Linux/Unix, set TCP keepalive parameters
-            try:
-                # TCP_KEEPIDLE: time before starting keepalive probes (60 seconds)
-                # TCP_KEEPINTVL: interval between keepalive probes (30 seconds)
-                # TCP_KEEPCNT: number of probes before considering connection dead (3)
-                import platform
-                if platform.system() != 'Windows':
-                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
-                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
-                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
-            except (AttributeError, OSError):
-                # Some systems may not support these options, that's okay
-                pass
+            
+            # macOS-specific socket options for better stability
+            import platform
+            system = platform.system()
+            if system == 'Darwin':  # macOS
+                try:
+                    # SO_NOSIGPIPE: Prevents SIGPIPE errors on macOS when writing to closed sockets
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_NOSIGPIPE, 1)
+                except (AttributeError, OSError):
+                    # SO_NOSIGPIPE might not be available in all Python versions
+                    pass
+                
+                # macOS TCP keepalive - try both naming conventions
+                try:
+                    # Some macOS versions use TCP_KEEPALIVE
+                    if hasattr(socket, 'TCP_KEEPALIVE'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPALIVE, 30)  # Start probes after 30s
+                    # Others use TCP_KEEPIDLE (same as Linux)
+                    elif hasattr(socket, 'TCP_KEEPIDLE'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+                    
+                    # These should work on macOS
+                    if hasattr(socket, 'TCP_KEEPINTVL'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)  # Probe every 10s (aggressive)
+                    if hasattr(socket, 'TCP_KEEPCNT'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)     # 3 failed probes = dead
+                except (AttributeError, OSError):
+                    pass
+                    
+            elif system != 'Windows':  # Linux and other Unix-like systems
+                # Linux uses TCP_KEEPIDLE
+                try:
+                    # TCP_KEEPIDLE: time before starting keepalive probes (60 seconds)
+                    # TCP_KEEPINTVL: interval between keepalive probes (30 seconds)
+                    # TCP_KEEPCNT: number of probes before considering connection dead (3)
+                    if hasattr(socket, 'TCP_KEEPIDLE'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+                    if hasattr(socket, 'TCP_KEEPINTVL'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+                    if hasattr(socket, 'TCP_KEEPCNT'):
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+                except (AttributeError, OSError):
+                    pass
             
             # Set a timeout for the connection attempt only
             sock.settimeout(15)
