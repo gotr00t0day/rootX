@@ -1,7 +1,7 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import ttk, scrolledtext, filedialog, colorchooser
+from tkinter import ttk, scrolledtext, filedialog, colorchooser, messagebox
 from datetime import datetime
 from colorama import Fore, Style
 import time
@@ -1073,7 +1073,7 @@ class PrivateWindow:
 
         # Add action color
         self.chat_display.tag_configure('action', foreground='yellow')
-        
+
         # Apply initial theme
         self.apply_theme(self.irc_client.preferences.get('theme', 'default'))
 
@@ -1571,6 +1571,8 @@ class IRCClient:
         # Windows dictionary - keyed by unique identifiers
         self.channel_windows = {}  # Use server:channel as key
         self.private_windows = {}  # Use server:nickname as key
+        self.user_hostmasks = {}  # Store hostmasks: key = "server:nickname", value = hostmask
+        self.whois_data = {}  # Store WHOIS data: key = "server:nickname", value = dict with whois info
         self.status_window = None
         
         # Tab-related variables
@@ -1614,13 +1616,14 @@ class IRCClient:
         tree_scrollbar = ttk.Scrollbar(self.tree_frame)
         tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Create the network tree
+        # Create the network tree with a custom style name
         self.network_tree = ttk.Treeview(
             self.tree_frame, 
             selectmode='browse',
             yscrollcommand=tree_scrollbar.set,
             show='tree',
-            height=20
+            height=20,
+            style='NetworkTree.Treeview'  # Use custom style name
         )
         self.network_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tree_scrollbar.config(command=self.network_tree.yview)
@@ -1628,7 +1631,10 @@ class IRCClient:
         # Bind events for tree items
         self.network_tree.bind('<<TreeviewSelect>>', self.on_tree_select)
         self.network_tree.bind('<Double-1>', self.on_tree_double_click)
-        self.network_tree.bind('<Button-3>', self.show_tree_menu)
+        # Right-click bindings for cross-platform support
+        self.network_tree.bind('<Button-3>', self.show_tree_menu)  # Linux/Windows right-click
+        self.network_tree.bind('<Button-2>', self.show_tree_menu)  # macOS right-click
+        self.network_tree.bind('<Control-Button-1>', self.show_tree_menu)  # macOS Control+click
         
         # Create content frame for notebook/tabs
         self.content_frame = ttk.Frame(self.main_paned)
@@ -1721,6 +1727,8 @@ class IRCClient:
         # Scripts menu
         self.scripts_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.scripts_menu.add_command(label="Script Manager", command=self.show_script_manager)
+        self.scripts_menu.add_separator()
+        self.scripts_menu.add_command(label="Script Editor", command=self.show_script_editor)
         self.menu_bar.add_cascade(label="Scripts", menu=self.scripts_menu)
         
         # Services menu
@@ -1743,6 +1751,9 @@ class IRCClient:
         # Store script manager window reference
         self.script_manager_window = None
         
+        # Store script editor window reference
+        self.script_editor_window = None
+        
         # Store services window reference
         self.services_window = None
 
@@ -1756,10 +1767,25 @@ class IRCClient:
         # Create status window first so we can show messages
         self.create_status_window()
         
-        # Apply saved theme on startup
+        # Apply saved theme on startup - do this after all widgets are created
         saved_theme = self.preferences.get('theme', 'default')
         if saved_theme in self.themes:
-            self.apply_theme_to_all(saved_theme)
+            # Apply immediately and also with delays to ensure all widgets are ready
+            # This ensures tree, status window, and any existing channels get themed
+            def apply_startup_theme():
+                try:
+                    self.apply_theme_to_all(saved_theme)
+                except Exception as e:
+                    print(f"Error applying startup theme: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Apply immediately
+            self.window.after(0, apply_startup_theme)
+            # Apply again after a short delay to catch widgets that weren't ready
+            self.window.after(100, apply_startup_theme)
+            # Apply tree theme again after longer delay to ensure it sticks
+            self.window.after(500, lambda: self.apply_theme_to_tree(saved_theme))
         
         # Initialize scripting engine after window is ready
         self.script_engine = ScriptEngine(self)
@@ -2073,7 +2099,7 @@ class IRCClient:
                 json.dump(self.preferences, f, indent=4)
         except IOError as e:
             print(f"Error saving preferences: {e}")
-    
+        
     def save_theme_preference(self, theme_name):
         """Save theme preference"""
         self.preferences['theme'] = theme_name
@@ -2469,6 +2495,10 @@ class IRCClient:
         if channel_key in self.channel_windows:
             self.select_tab(channel_key)
             return # Already exists, just select it
+        
+        # Add channel to connections dictionary for auto-reconnect
+        if server in self.connections:
+            self.connections[server]['channels'].add(channel)
 
         # --- Create Main Tab Frame ---
         channel_tab = ttk.Frame(self.notebook)
@@ -2498,7 +2528,7 @@ class IRCClient:
         # Chat display - apply theme colors immediately
         chat_display = scrolledtext.ScrolledText(chat_frame, wrap=tk.WORD)
         chat_display.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        
+
         # Apply theme to the Text widget inside ScrolledText
         if hasattr(chat_display, 'text'):
             text_widget = chat_display.text
@@ -2598,7 +2628,13 @@ class IRCClient:
         user_menu.add_command(label="Ban", command=lambda: self.ban_from_userlist(channel_key))
 
         # Bind user list context menu
-        users_listbox.bind("<Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))  # Right-click shows menu
+        # Right-click bindings for cross-platform support
+        # Button-3: Linux/Windows right-click
+        # Button-2: macOS right-click (some systems)
+        # Control-Button-1: macOS Control+click (standard right-click alternative)
+        users_listbox.bind("<Button-3>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))  # Linux/Windows right-click
+        users_listbox.bind("<Button-2>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))  # macOS right-click
+        users_listbox.bind("<Control-Button-1>", lambda event, ck=channel_key: self.show_user_context_menu(event, ck))  # macOS Control+click
         users_listbox.bind("<Double-Button-1>", lambda event, ck=channel_key: self.open_pm_from_userlist(ck, event))  # Double left-click opens PM directly
 
 
@@ -2633,9 +2669,28 @@ class IRCClient:
         self.add_channel_message(channel_key, f"* Joined channel {channel}", 'join')
 
         # Apply current theme to the new channel window
+        # Apply immediately after storing channel_info, then again after a delay to ensure all widgets are ready
         current_theme = self.preferences.get('theme', 'default')
         if current_theme in self.themes:
-            self.apply_theme_to_channel(channel_key, current_theme)
+            # Apply immediately using window.after(0) to ensure it happens after all widgets are packed
+            def apply_theme_immediate():
+                try:
+                    if channel_key in self.channel_windows:
+                        self.apply_theme_to_channel(channel_key, current_theme)
+                except Exception as e:
+                    print(f"Error applying theme immediately: {e}")
+                    import traceback
+                    traceback.print_exc()
+            self.window.after(0, apply_theme_immediate)
+            
+            # Also apply after a longer delay to catch any widgets that weren't ready
+            def apply_theme_delayed():
+                try:
+                    if channel_key in self.channel_windows:
+                        self.apply_theme_to_channel(channel_key, current_theme)
+                except Exception as e:
+                    print(f"Error applying theme delayed: {e}")
+            self.window.after(500, apply_theme_delayed)
 
         # Activate the new tab
         self.select_tab(channel_key)
@@ -2950,6 +3005,24 @@ class IRCClient:
         current_theme_dict = self.themes.get(theme_name, self.themes['default'])
         self.script_manager_window = ScriptManagerWindow(self, current_theme_dict)
     
+    def show_script_editor(self):
+        """Show the Script Editor window."""
+        if self.script_editor_window is not None:
+            try:
+                if self.script_editor_window.winfo_exists():
+                    self.script_editor_window.lift()
+                    self.script_editor_window.focus_force()
+                    return  # Already open
+                else:
+                    self.script_editor_window = None  # Stale reference
+            except tk.TclError:
+                self.script_editor_window = None  # Stale reference
+
+        # Create and show the window, passing the current theme
+        theme_name = self.preferences.get('theme', 'default')
+        current_theme_dict = self.themes.get(theme_name, self.themes['default'])
+        self.script_editor_window = ScriptEditorWindow(self, current_theme_dict)
+    
     def show_services_window(self):
         """Show the Services window."""
         if self.services_window is not None:
@@ -3106,15 +3179,49 @@ class IRCClient:
         
         # Apply to Treeview widget using ttk.Style
         if hasattr(self, 'network_tree') and self.network_tree:
-            style = ttk.Style()
-            style.configure('Treeview',
-                           background=theme.get('list_bg', theme['bg']),
-                           foreground=theme.get('list_fg', theme['fg']),
-                           fieldbackground=theme.get('list_bg', theme['bg']),
-                           borderwidth=0)
-            style.map('Treeview',
-                     background=[('selected', theme.get('select_bg', '#333333'))],
-                     foreground=[('selected', theme.get('list_fg', theme['fg']))])
+            try:
+                style = ttk.Style()
+                # Configure a custom Treeview style with theme colors
+                style.configure('NetworkTree.Treeview',
+                               background=theme.get('list_bg', theme['bg']),
+                               foreground=theme.get('list_fg', theme['fg']),
+                               fieldbackground=theme.get('list_bg', theme['bg']),
+                               borderwidth=0)
+                style.map('NetworkTree.Treeview',
+                         background=[('selected', theme.get('select_bg', '#333333'))],
+                         foreground=[('selected', theme.get('list_fg', theme['fg']))])
+                
+                # Apply the style to the treeview
+                self.network_tree.configure(style='NetworkTree.Treeview')
+                
+                # Also configure the scrollbar for the tree
+                style.configure('Vertical.TScrollbar',
+                               background=theme.get('scrollbar_bg', '#2a2a2a'),
+                               troughcolor=theme.get('bg', 'black'),
+                               borderwidth=0,
+                               arrowcolor=theme.get('fg', 'white'),
+                               darkcolor=theme.get('bg', 'black'),
+                               lightcolor=theme.get('bg', 'black'))
+                style.map('Vertical.TScrollbar',
+                         background=[('active', theme.get('scrollbar_active_bg', '#3a3a3a'))])
+                
+                # Force update to ensure changes are visible
+                self.window.update_idletasks()
+                
+                # Force a refresh by temporarily changing and restoring selection
+                try:
+                    current_selection = self.network_tree.selection()
+                    if current_selection:
+                        # Temporarily deselect and reselect to force refresh
+                        self.network_tree.selection_remove(current_selection)
+                        self.window.update_idletasks()
+                        self.network_tree.selection_set(current_selection)
+                except:
+                    pass
+            except Exception as e:
+                print(f"Error styling network_tree: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Apply to sidebar frame background
         if hasattr(self, 'sidebar_frame') and self.sidebar_frame:
@@ -3133,10 +3240,22 @@ class IRCClient:
                 self.tree_frame.configure(style='TreeFrame.TFrame')
             except Exception as e:
                 print(f"Error styling tree_frame: {e}")
+        
+        # Also apply to main paned window background
+        if hasattr(self, 'main_paned') and self.main_paned:
+            try:
+                style = ttk.Style()
+                style.configure('TPanedwindow', background=theme['bg'])
+            except Exception as e:
+                print(f"Error styling main_paned: {e}")
     
     def apply_theme_to_channel(self, channel_key, theme_name):
         """Apply theme to a specific channel window"""
-        if theme_name not in self.themes or channel_key not in self.channel_windows:
+        if theme_name not in self.themes:
+            print(f"Warning: Theme '{theme_name}' not found in themes")
+            return
+        if channel_key not in self.channel_windows:
+            print(f"Warning: Channel key '{channel_key}' not found in channel_windows")
             return
         
         theme = self.themes[theme_name]
@@ -3849,11 +3968,52 @@ class IRCClient:
             
         try:
             if data.startswith('ERROR :') or 'Connection closed' in data:
-                error_msg = data.split(':', 1)[1].strip()
+                error_msg = data.split(':', 1)[1].strip() if ':' in data else 'Connection closed'
                 self.add_status_message(f"Server {server} disconnected: {error_msg}")
+                
+                # Store connection info for reconnection before cleanup
+                channels_to_rejoin = set()
+                server_config = None
+                if server in self.connections:
+                    conn_info = self.connections[server]
+                    channels_to_rejoin = conn_info.get('channels', set()).copy()
+                    
+                    # Try to get server config from network config first
+                    network_config = self.load_network_config()
+                    for network in network_config.get('networks', []):
+                        if network.get('server') == server:
+                            server_config = network.copy()
+                            break
+                    
+                    # If not found in network config, build config from connection info
+                    if not server_config:
+                        server_config = {
+                            'host': conn_info.get('host', server),
+                            'server': server,
+                            'port': conn_info.get('port', 6667),
+                            'nickname': conn_info.get('nickname', 'RootXUser'),
+                            'username': conn_info.get('username', conn_info.get('nickname', 'rootx')),
+                            'realname': conn_info.get('realname', conn_info.get('nickname', 'RootX IRC Client')),
+                            'password': conn_info.get('password', '')
+                        }
+                
                 # Don't mark as manual disconnect - allow auto-reconnect
                 self.disconnect_from_server(server, manual=False)
                 self.remove_server_node(server)
+                
+                # Attempt auto-reconnect if enabled
+                if (self.auto_reconnect_enabled and 
+                    server not in self.manual_disconnect and 
+                    server not in self.reconnect_in_progress and
+                    server_config):
+                    self.reconnect_in_progress.add(server)
+                    reconnect_thread = threading.Thread(
+                        target=self.auto_reconnect,
+                        args=(server, server_config, channels_to_rejoin),
+                        daemon=True
+                    )
+                    reconnect_thread.start()
+                
                 return
                 
             # Print raw data to status window for debugging
@@ -3895,6 +4055,10 @@ class IRCClient:
                             'user': user,
                             'host': host
                         }
+                        
+                        # Store hostmask for this user on this server
+                        hostmask_key = f"{server}:{sender.lower()}"
+                        self.user_hostmasks[hostmask_key] = full_address
                         
                         # Handle ACTION messages
                         if message.startswith('\x01ACTION') and message.endswith('\x01'):
@@ -4011,6 +4175,10 @@ class IRCClient:
                             'host': host
                         }
                         
+                        # Store hostmask for this user on this server
+                        hostmask_key = f"{server}:{user.lower()}"
+                        self.user_hostmasks[hostmask_key] = full_address
+                        
                         # Trigger JOIN script event with hostmask info (always, not just if channel window exists)
                         if self.script_engine:
                             self.script_engine.trigger_event('JOIN', user, channel, '', server, extra_context)
@@ -4023,6 +4191,10 @@ class IRCClient:
                             
                             # Request NAMES list if we joined
                             if user == self.connections[server]['nickname']:
+                                # Add channel to connections dictionary for auto-reconnect
+                                if server in self.connections:
+                                    self.connections[server]['channels'].add(channel)
+                                
                                 # Mark that we are waiting for the initial NAMES list
                                 if channel_key in self.channel_windows:
                                     self.channel_windows[channel_key]['waiting_for_names'] = True
@@ -4136,6 +4308,127 @@ class IRCClient:
                         print(f"Error finalizing channel list window: {e}")
                 return # Don't print raw 323 message to status
             # --- End LIST handling ---
+
+            # --- Handle WHOIS replies (311, 312, 313, 317, 318, 319) ---
+            elif ' 311 ' in data:  # RPL_WHOISUSER - Basic user info
+                try:
+                    # Format: :server 311 yournick targetnick username hostname * :realname
+                    parts = data.split(' ', 4)
+                    if len(parts) >= 4:
+                        target_nick = parts[3]
+                        rest = parts[4] if len(parts) > 4 else ''
+                        # Parse username, hostname, and realname
+                        rest_parts = rest.split(' * :', 1)
+                        if len(rest_parts) >= 2:
+                            userhost = rest_parts[0].strip()
+                            realname = rest_parts[1].strip()
+                            userhost_parts = userhost.split(' ', 1)
+                            username = userhost_parts[0] if len(userhost_parts) > 0 else ''
+                            hostname = userhost_parts[1] if len(userhost_parts) > 1 else ''
+                            
+                            whois_key = f"{server}:{target_nick.lower()}"
+                            if whois_key not in self.whois_data:
+                                self.whois_data[whois_key] = {}
+                            self.whois_data[whois_key]['nick'] = target_nick
+                            self.whois_data[whois_key]['username'] = username
+                            self.whois_data[whois_key]['hostname'] = hostname
+                            self.whois_data[whois_key]['realname'] = realname
+                            self.whois_data[whois_key]['hostmask'] = f"{target_nick}!{username}@{hostname}"
+                except Exception as e:
+                    self.add_status_message(f"Error parsing WHOIS 311: {e}")
+            
+            elif ' 312 ' in data:  # RPL_WHOISSERVER - Server info
+                try:
+                    # Format: :server 312 yournick targetnick server :serverinfo
+                    parts = data.split(' ', 4)
+                    if len(parts) >= 4:
+                        target_nick = parts[3]
+                        server_info = parts[4].split(' :', 1)[1] if ' :' in parts[4] else ''
+                        server_name = parts[4].split(' :')[0].strip() if ' :' in parts[4] else ''
+                        
+                        whois_key = f"{server}:{target_nick.lower()}"
+                        if whois_key not in self.whois_data:
+                            self.whois_data[whois_key] = {}
+                        self.whois_data[whois_key]['irc_server'] = server_name
+                        self.whois_data[whois_key]['server_info'] = server_info
+                except Exception as e:
+                    self.add_status_message(f"Error parsing WHOIS 312: {e}")
+            
+            elif ' 313 ' in data:  # RPL_WHOISOPERATOR - Operator status
+                try:
+                    # Format: :server 313 yournick targetnick :is an IRC Operator
+                    parts = data.split(' ', 3)
+                    if len(parts) >= 3:
+                        target_nick = parts[3].split(' :', 1)[0].strip()
+                        whois_key = f"{server}:{target_nick.lower()}"
+                        if whois_key not in self.whois_data:
+                            self.whois_data[whois_key] = {}
+                        self.whois_data[whois_key]['is_operator'] = True
+                except Exception as e:
+                    self.add_status_message(f"Error parsing WHOIS 313: {e}")
+            
+            elif ' 317 ' in data:  # RPL_WHOISIDLE - Idle time
+                try:
+                    # Format: :server 317 yournick targetnick seconds signon :seconds idle
+                    parts = data.split(' ', 4)
+                    if len(parts) >= 4:
+                        target_nick = parts[3]
+                        idle_info = parts[4].strip()
+                        idle_parts = idle_info.split(' :', 1)
+                        signon = idle_parts[0].split()[0] if idle_parts else ''
+                        idle_seconds = idle_parts[1] if len(idle_parts) > 1 else ''
+                        
+                        whois_key = f"{server}:{target_nick.lower()}"
+                        if whois_key not in self.whois_data:
+                            self.whois_data[whois_key] = {}
+                        self.whois_data[whois_key]['idle_seconds'] = idle_seconds
+                        self.whois_data[whois_key]['signon_time'] = signon
+                except Exception as e:
+                    self.add_status_message(f"Error parsing WHOIS 317: {e}")
+            
+            elif ' 319 ' in data:  # RPL_WHOISCHANNELS - Channels user is in
+                try:
+                    # Format: :server 319 yournick targetnick :@#channel1 +#channel2 #channel3
+                    parts = data.split(' ', 3)
+                    if len(parts) >= 3:
+                        target_nick = parts[3].split(' :', 1)[0].strip()
+                        channels = parts[3].split(' :', 1)[1] if ' :' in parts[3] else ''
+                        
+                        whois_key = f"{server}:{target_nick.lower()}"
+                        if whois_key not in self.whois_data:
+                            self.whois_data[whois_key] = {}
+                        self.whois_data[whois_key]['channels'] = channels
+                except Exception as e:
+                    self.add_status_message(f"Error parsing WHOIS 319: {e}")
+            
+            elif ' 318 ' in data:  # RPL_ENDOFWHOIS - End of WHOIS
+                try:
+                    # Format: :server 318 yournick targetnick :End of /WHOIS list
+                    parts = data.split(' ', 3)
+                    if len(parts) >= 3:
+                        target_nick = parts[3].split(' :', 1)[0].strip()
+                        whois_key = f"{server}:{target_nick.lower()}"
+                        
+                        # Trigger WHOIS script event with collected data
+                        if self.script_engine and whois_key in self.whois_data:
+                            whois_info = self.whois_data[whois_key]
+                            extra_context = {
+                                'whois_nick': whois_info.get('nick', target_nick),
+                                'whois_username': whois_info.get('username', ''),
+                                'whois_hostname': whois_info.get('hostname', ''),
+                                'whois_realname': whois_info.get('realname', ''),
+                                'whois_hostmask': whois_info.get('hostmask', ''),
+                                'whois_server': whois_info.get('irc_server', ''),
+                                'whois_server_info': whois_info.get('server_info', ''),
+                                'whois_idle': whois_info.get('idle_seconds', ''),
+                                'whois_signon': whois_info.get('signon_time', ''),
+                                'whois_operator': str(whois_info.get('is_operator', False)),
+                                'whois_channels': whois_info.get('channels', '')
+                            }
+                            self.script_engine.trigger_event('WHOIS', target_nick, '*', '', server, extra_context)
+                except Exception as e:
+                    self.add_status_message(f"Error parsing WHOIS 318: {e}")
+            # --- End WHOIS handling ---
 
             # Handle PART messages
             elif 'PART' in data:
@@ -4255,24 +4548,38 @@ class IRCClient:
                                 self.add_status_message(f"Server {server} closed connection: {quit_msg}")
                                 
                                 # Store channels and config for auto-reconnect before cleanup
-                                channels_to_rejoin = self.connections[server].get('channels', set()).copy()
+                                conn_info = self.connections[server]
+                                channels_to_rejoin = conn_info.get('channels', set()).copy()
                                 server_config = None
+                                
+                                # Try to get server config from network config first
                                 network_config = self.load_network_config()
-                                # Search through networks list to find matching server
                                 for network in network_config.get('networks', []):
                                     if network.get('server') == server:
                                         server_config = network.copy()
                                         break
                                 
+                                # If not found in network config, build config from connection info
+                                if not server_config:
+                                    server_config = {
+                                        'host': conn_info.get('host', server),
+                                        'server': server,
+                                        'port': conn_info.get('port', 6667),
+                                        'nickname': conn_info.get('nickname', 'RootXUser'),
+                                        'username': conn_info.get('username', conn_info.get('nickname', 'rootx')),
+                                        'realname': conn_info.get('realname', conn_info.get('nickname', 'RootX IRC Client')),
+                                        'password': conn_info.get('password', '')
+                                    }
+                                
                                 # Don't mark as manual disconnect - allow auto-reconnect
                                 self.disconnect_from_server(server, manual=False)
                                 
                                 # Start auto-reconnect if enabled and not already reconnecting
+                                # Allow reconnection even if no channels to rejoin
                                 if (self.auto_reconnect_enabled and 
                                     server not in self.manual_disconnect and 
                                     server not in self.reconnect_in_progress and
-                                    server_config and 
-                                    channels_to_rejoin):
+                                    server_config):
                                     self.reconnect_in_progress.add(server)
                                     reconnect_thread = threading.Thread(
                                         target=self.auto_reconnect,
@@ -4386,8 +4693,16 @@ class IRCClient:
         except Exception as e:
             self.add_status_message(f"Error processing message: {e}")
 
-    def connect_to_server(self, server, port, nickname):
-        """Connect to an IRC server and set up the connection"""
+    def connect_to_server(self, server, port, nickname, username=None, realname=None, password=''):
+        """Connect to an IRC server and set up the connection
+        Args:
+            server: Server hostname
+            port: Server port
+            nickname: IRC nickname
+            username: IRC username (defaults to nickname)
+            realname: IRC realname (defaults to nickname)
+            password: Server password (optional)
+        """
         try:
             # Check if already connected to this server
             if server in self.connections:
@@ -4396,14 +4711,33 @@ class IRCClient:
                 self.current_server = server
                 return
             
+            # Use defaults if not provided
+            if username is None:
+                username = nickname
+            if realname is None:
+                realname = nickname
+            
             # Add debug message
             self.add_status_message(f"Attempting to connect to {server}:{port} as {nickname}", 'notice')
                 
             # Create socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             
-            # Make the socket keep-alive
+            # Make the socket keep-alive with aggressive settings
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            # On Linux/Unix, set TCP keepalive parameters
+            try:
+                # TCP_KEEPIDLE: time before starting keepalive probes (60 seconds)
+                # TCP_KEEPINTVL: interval between keepalive probes (30 seconds)
+                # TCP_KEEPCNT: number of probes before considering connection dead (3)
+                import platform
+                if platform.system() != 'Windows':
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 30)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+            except (AttributeError, OSError):
+                # Some systems may not support these options, that's okay
+                pass
             
             # Set a timeout for the connection attempt only
             sock.settimeout(15)
@@ -4421,10 +4755,15 @@ class IRCClient:
             # Log successful connection
             self.add_status_message(f"Socket connected to {server}:{port}")
             
-            # Store connection info
+            # Store connection info (including port and other details for reconnection)
             self.connections[server] = {
                 'socket': sock,
                 'nickname': nickname,
+                'port': port,
+                'host': server,  # Store host for reconnection
+                'username': username,
+                'realname': realname,
+                'password': password,
                 'channels': set(),
                 'users': {},  # Track users per server
                 'last_ping': time.time()  # Track time of last ping
@@ -4447,8 +4786,13 @@ class IRCClient:
             
             # Send registration commands
             self.add_status_message(f"Sending registration commands...")
+            
+            # Send password if provided
+            if password:
+                sock.send(f"PASS {password}\r\n".encode('utf-8'))
+            
             sock.send(f"NICK {nickname}\r\n".encode('utf-8'))
-            sock.send(f"USER {nickname} 0 * :{nickname}\r\n".encode('utf-8'))
+            sock.send(f"USER {username} 0 * :{realname}\r\n".encode('utf-8'))
             
             # Start receive thread
             receive_thread = threading.Thread(
@@ -4504,9 +4848,12 @@ class IRCClient:
                 pass
                 
     def ping_server_periodically(self, server):
-        """Send periodic pings to keep the connection alive"""
+        """Send periodic pings and other harmless commands to keep the connection alive"""
         try:
-            ping_interval = 30  # Ping every 30 seconds
+            ping_interval = 20  # Ping every 20 seconds (more aggressive)
+            whois_interval = 300  # Send WHOIS on self every 5 minutes (harmless, shows activity)
+            last_whois_time = 0
+            
             while server in self.connections and not self.disconnecting:
                 # Wait for the interval
                 time.sleep(ping_interval)
@@ -4514,15 +4861,30 @@ class IRCClient:
                 # Check if we're still connected
                 if server not in self.connections or self.disconnecting:
                     break
+                
+                current_time = time.time()
                     
-                # Send a ping
+                # Send a ping (primary keepalive)
                 try:
-                    current_time = int(time.time())
-                    self.send_command(f"PING :{current_time}", server)
-                    self.connections[server]['last_ping'] = time.time()
+                    ping_time = int(current_time)
+                    self.send_command(f"PING :keepalive-{ping_time}", server)
+                    self.connections[server]['last_ping'] = current_time
                 except Exception as e:
                     self.add_status_message(f"Error sending ping to {server}: {e}", 'error')
                     break
+                
+                # Periodically send WHOIS on self (harmless command that shows activity)
+                # This makes it look like we're actively checking something
+                if current_time - last_whois_time > whois_interval:
+                    try:
+                        nickname = self.connections[server].get('nickname', '')
+                        if nickname:
+                            # WHOIS on self is harmless and shows activity
+                            self.send_command(f"WHOIS {nickname}", server)
+                            last_whois_time = current_time
+                    except Exception as e:
+                        # Don't break on WHOIS errors, just log
+                        pass
                     
         except Exception as e:
             self.add_status_message(f"Error in ping thread for {server}: {e}", 'error')
@@ -4569,8 +4931,8 @@ class IRCClient:
                 realname = server_config.get('realname', 'RootX IRC Client')
                 password = server_config.get('password', '')
                 
-                # Attempt to connect
-                self.connect_to_server(host, port, nickname, username, realname, password, server)
+                # Attempt to connect (server parameter is the key, host is the actual hostname)
+                self.connect_to_server(server, port, nickname, username, realname, password)
                 
                 # Wait a moment for connection to establish
                 time.sleep(2)
@@ -4587,19 +4949,17 @@ class IRCClient:
                         self.add_status_message(f"Auto-reconnect: Rejoining {len(channels_to_rejoin)} channel(s)...", 'info')
                         for channel in channels_to_rejoin:
                             try:
-                                # Get channel key if it was stored
-                                channel_key = f"{server}:{channel}"
-                                if channel_key in self.channel_windows:
-                                    stored_key = self.channel_windows[channel_key].get('key', '')
-                                    if stored_key:
-                                        self.send_command(f"JOIN {channel} {stored_key}", server)
-                                    else:
-                                        self.send_command(f"JOIN {channel}", server)
-                                else:
-                                    self.send_command(f"JOIN {channel}", server)
+                                # Send JOIN command
+                                self.send_command(f"JOIN {channel}", server)
+                                
+                                # Create channel window (this will also add it back to connections['channels'])
+                                self.create_channel_window(channel, server)
+                                
                                 time.sleep(0.5)  # Small delay between joins
                             except Exception as e:
                                 self.add_status_message(f"Error rejoining {channel}: {e}", 'error')
+                    else:
+                        self.add_status_message(f"Auto-reconnect: No channels to rejoin", 'info')
                     
                     # Reset reconnect attempts on success
                     self.reconnect_attempts[server] = 0
@@ -4662,27 +5022,29 @@ class IRCClient:
             # Set a small timeout for quicker response to disconnect
             # This is already set in connect_to_server
             
-            # Track consecutive timeouts
-            consecutive_timeouts = 0
-            max_consecutive_timeouts = 20  # About 10 seconds with 0.5s timeout
+            # Track when we last received data (more reliable than counting timeouts)
+            last_data_time = time.time()
+            last_activity_time = time.time()  # Track when we last sent any activity
+            last_ping_time = 0  # Track when we last sent a ping check
+            ping_check_interval = 60  # Send keepalive every 1 minute if no activity (more aggressive)
+            max_idle_time = 120  # Maximum idle time before sending keepalive (2 minutes)
             
             self.add_status_message(f"Started receive thread for {server}")
             
             while server in self.connections and not self.disconnecting:
                 try:
                     data = sock.recv(4096).decode('utf-8', errors='replace')
-                    if not data:  # Connection closed by server
-                        # Only consider it closed if we've received nothing multiple times
-                        consecutive_timeouts += 1
-                        if consecutive_timeouts >= 3:  # Three consecutive empty reads
-                            self.add_status_message(f"Connection to {server} closed by remote host", 'error')
-                            # Don't mark as manual disconnect - allow auto-reconnect
+                    if not data:  # Empty read - this is normal with timeouts, just continue
+                        # Only check for dead connection if we've had no activity (sent or received) for a very long time
+                        # Use last_activity_time instead of last_data_time to account for keepalive PINGs
+                        if time.time() - last_activity_time > 600:  # 10 minutes with no activity at all
+                            self.add_status_message(f"Connection to {server} appears to be closed (no activity for 10 minutes)", 'error')
                             break
-                        # Otherwise, try again
                         continue
                     
-                    # Reset timeout counter on successful data
-                    consecutive_timeouts = 0
+                    # Reset last data time on successful data
+                    last_data_time = time.time()
+                    last_activity_time = time.time()  # Reset activity timer on any received data
                     
                     # Add data to buffer and process complete lines
                     buffer += data
@@ -4694,18 +5056,27 @@ class IRCClient:
                         self.handle_server_message(line, server)
                         
                 except socket.timeout:
-                    # Count consecutive timeouts
-                    consecutive_timeouts += 1
+                    # Timeouts are normal - send keepalive to prevent inactivity disconnect
+                    current_time = time.time()
+                    time_since_activity = current_time - last_activity_time
+                    time_since_ping = current_time - last_ping_time
                     
-                    # If too many consecutive timeouts, check connection with a PING
-                    if consecutive_timeouts >= max_consecutive_timeouts:
-                        # Send a ping to check if connection is still alive
+                    # Send keepalive more aggressively to prevent server disconnects
+                    # Send PING every 2 minutes if no activity, or every 3 minutes if we've been idle
+                    if time_since_ping > ping_check_interval:
                         try:
-                            current_time = int(time.time())
-                            self.send_command(f"PING :{current_time}", server)
-                            consecutive_timeouts = 0  # Reset counter on successful send
-                        except socket.error:
-                            self.add_status_message(f"Connection to {server} appears to be lost", 'error')
+                            # Send a PING to keep connection alive
+                            # This is a standard IRC keepalive mechanism
+                            ping_time = int(time.time())
+                            self.send_command(f"PING :keepalive-{ping_time}", server)
+                            last_ping_time = current_time
+                            last_activity_time = current_time  # Update activity time (sending is activity)
+                            # Don't log every ping to avoid spam, only log occasionally
+                            if int(current_time) % 300 == 0:  # Log every 5 minutes
+                                self.add_status_message(f"Sent keepalive PING to {server} (idle for {int(time_since_activity)}s)")
+                        except socket.error as e:
+                            # If we can't send, connection is likely dead
+                            self.add_status_message(f"Connection to {server} appears to be lost (cannot send PING): {e}", 'error')
                             break
                     continue
                     
@@ -4721,18 +5092,31 @@ class IRCClient:
         except Exception as e:
             self.add_status_message(f"Error in receive thread for {server}: {e}", 'error')
         finally:
-            # Store channels before cleanup for auto-reconnect
+            # Store channels and connection info before cleanup for auto-reconnect
             channels_to_rejoin = set()
             server_config = None
             if server in self.connections and not self.disconnecting:
-                channels_to_rejoin = self.connections[server].get('channels', set()).copy()
-                # Get server config for reconnection
+                conn_info = self.connections[server]
+                channels_to_rejoin = conn_info.get('channels', set()).copy()
+                
+                # Try to get server config from network config first
                 network_config = self.load_network_config()
-                # Search through networks list to find matching server
                 for network in network_config.get('networks', []):
                     if network.get('server') == server:
                         server_config = network.copy()
                         break
+                
+                # If not found in network config, build config from connection info
+                if not server_config:
+                    server_config = {
+                        'host': conn_info.get('host', server),
+                        'server': server,
+                        'port': conn_info.get('port', 6667),
+                        'nickname': conn_info.get('nickname', 'RootXUser'),
+                        'username': conn_info.get('username', conn_info.get('nickname', 'rootx')),
+                        'realname': conn_info.get('realname', conn_info.get('nickname', 'RootX IRC Client')),
+                        'password': conn_info.get('password', '')
+                    }
             
             # Clean up but only if not already being cleaned up elsewhere
             if server in self.connections and not self.disconnecting:
@@ -4745,11 +5129,11 @@ class IRCClient:
             self.add_status_message(f"Receive thread for {server} terminated")
             
             # Attempt auto-reconnect if enabled and not a manual disconnect and not already reconnecting
+            # Allow reconnection even if no channels to rejoin (user might want to reconnect anyway)
             if (self.auto_reconnect_enabled and 
                 server not in self.manual_disconnect and 
                 server not in self.reconnect_in_progress and
-                server_config and 
-                channels_to_rejoin):
+                server_config):
                 self.reconnect_in_progress.add(server)
                 # Start reconnect in a separate thread to avoid blocking
                 reconnect_thread = threading.Thread(
@@ -5791,6 +6175,8 @@ class ChannelListWindow:
         self.irc_client = irc_client
         self.server = server
         self.full_channel_list = [] # Store tuples: (channel, users, topic)
+        self.pending_entries = [] # Buffer for batch updates
+        self.batch_update_scheduled = False # Track if batch update is scheduled
 
         # Create Toplevel window
         self.window = tk.Toplevel(irc_client.window)
@@ -5863,6 +6249,9 @@ class ChannelListWindow:
         """Clear list and send LIST command to server."""
         self.clear_list()
         self.status_label.config(text="Requesting list...")
+        # Clear any pending entries from previous request
+        self.pending_entries = []
+        self.batch_update_scheduled = False
         self.irc_client.send_command("LIST", self.server)
 
     def clear_list(self):
@@ -5872,29 +6261,126 @@ class ChannelListWindow:
         self.full_channel_list = []
 
     def add_channel_entry(self, channel, users, topic):
-        """Add a channel entry to the internal list and potentially the treeview."""
-        self.full_channel_list.append((channel, users, topic))
-        # Add to treeview only if it matches current filter (or if filter is empty)
-        search_term = self.search_var.get().lower()
-        if not search_term or search_term in channel.lower() or search_term in topic.lower():
-            self.tree.insert("", tk.END, values=(channel, users, topic))
+        """Add a channel entry to the internal list and potentially the treeview.
+        This method is thread-safe and can be called from any thread.
+        Uses very aggressive batching - only updates GUI every 2 seconds."""
+        # Add to pending entries buffer (this is fast, no GUI operations)
+        self.pending_entries.append((channel, users, topic))
+        
+        # Schedule batch update if not already scheduled
+        # Use VERY long initial delay - only update GUI every 2 seconds
+        if not self.batch_update_scheduled:
+            self.batch_update_scheduled = True
+            # Wait 2 seconds to accumulate MANY entries before first update
+            self.window.after(2000, self._process_batch_entries)
+    
+    def _process_batch_entries(self):
+        """Process pending channel entries in batches to keep UI responsive."""
+        try:
+            if not self.pending_entries:
+                self.batch_update_scheduled = False
+                return
+            
+            # Get current filter
+            search_term = self.search_var.get().lower()
+            
+            # Process ALL pending entries at once (or up to 200 at a time)
+            # This minimizes the number of GUI update cycles
+            batch_size = min(200, len(self.pending_entries))
+            entries_to_process = self.pending_entries[:batch_size]
+            self.pending_entries = self.pending_entries[batch_size:]
+            
+            # Add all to full list first (fast, no GUI operations)
+            for channel, users, topic in entries_to_process:
+                self.full_channel_list.append((channel, users, topic))
+            
+            # Filter and collect matching entries (fast, no GUI)
+            matching_entries = []
+            for channel, users, topic in entries_to_process:
+                if not search_term or search_term in channel.lower() or search_term in topic.lower():
+                    matching_entries.append((channel, users, topic))
+            
+            # Now do ONE batch insert operation (minimize GUI updates)
+            if matching_entries:
+                # Insert all matching entries in one go
+                # Don't call update_idletasks() here - let it happen naturally
+                for channel, users, topic in matching_entries:
+                    self.tree.insert("", tk.END, values=(channel, users, topic))
+            
+            # Update status to show progress (this is fast)
+            if len(self.pending_entries) > 0:
+                self.status_label.config(text=f"Receiving list... ({len(self.full_channel_list)} channels so far)")
+            
+            # If there are more pending entries, schedule another batch with VERY long delay
+            if self.pending_entries:
+                # Use 2 second delay between batches - this keeps GUI very responsive
+                self.window.after(2000, self._process_batch_entries)
+            else:
+                self.batch_update_scheduled = False
+        except Exception as e:
+            print(f"Error processing batch channel entries: {e}")
+            import traceback
+            traceback.print_exc()
+            self.batch_update_scheduled = False
 
     def list_complete(self):
-        """Called when RPL_LISTEND is received."""
-        self.status_label.config(text=f"List complete ({len(self.full_channel_list)} channels)")
+        """Called when RPL_LISTEND is received. Thread-safe."""
+        # Schedule the GUI update on the main thread
+        self.window.after(0, self._list_complete_safe)
+    
+    def _list_complete_safe(self):
+        """Internal method to safely update status label in the GUI thread."""
+        try:
+            self.status_label.config(text=f"List complete ({len(self.full_channel_list)} channels)")
+        except Exception as e:
+            print(f"Error updating list complete status: {e}")
 
     def filter_list(self, *args):
-        """Filter the treeview based on the search entry."""
+        """Filter the treeview based on the search entry. Uses batching for large lists."""
         search_term = self.search_var.get().lower()
 
         # Clear current treeview items
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        # Repopulate with filtered items from full list
+        # If list is large, use batching for repopulation
+        if len(self.full_channel_list) > 100:
+            self._filter_list_batched(search_term)
+        else:
+            # Small list, do it all at once
+            for channel, users, topic in self.full_channel_list:
+                if not search_term or search_term in channel.lower() or search_term in topic.lower():
+                    self.tree.insert("", tk.END, values=(channel, users, topic))
+    
+    def _filter_list_batched(self, search_term):
+        """Filter large lists in batches to keep UI responsive."""
+        # Filter all entries first
+        matching_entries = []
         for channel, users, topic in self.full_channel_list:
             if not search_term or search_term in channel.lower() or search_term in topic.lower():
-                self.tree.insert("", tk.END, values=(channel, users, topic))
+                matching_entries.append((channel, users, topic))
+        
+        # Process in batches
+        self._pending_filter_entries = matching_entries
+        self._process_filter_batch()
+    
+    def _process_filter_batch(self):
+        """Process filtered entries in batches."""
+        if not hasattr(self, '_pending_filter_entries') or not self._pending_filter_entries:
+            return
+        
+        batch_size = 20
+        entries_to_add = self._pending_filter_entries[:batch_size]
+        self._pending_filter_entries = self._pending_filter_entries[batch_size:]
+        
+        for channel, users, topic in entries_to_add:
+            self.tree.insert("", tk.END, values=(channel, users, topic))
+        
+        # Schedule next batch if there are more entries
+        if self._pending_filter_entries:
+            self.window.after(30, self._process_filter_batch)
+        else:
+            delattr(self, '_pending_filter_entries')
 
     def join_selected(self, event=None):
         """Join the currently selected channel in the treeview."""
@@ -6909,6 +7395,666 @@ class ScriptManagerWindow(tk.Toplevel):
         # Remove reference from client if stored
         if hasattr(self.irc_client, 'script_manager_window') and self.irc_client.script_manager_window == self:
             self.irc_client.script_manager_window = None
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+
+
+class ScriptEditorWindow(tk.Toplevel):
+    """GUI window for creating and editing scripts with syntax highlighting"""
+    
+    def __init__(self, irc_client, theme):
+        super().__init__(irc_client.window)
+        self.irc_client = irc_client
+        self.theme = theme
+        self.current_file = None
+        self.modified = False
+        
+        self.title("Script Editor - New Script")
+        self.geometry("900x700")
+        self.transient(irc_client.window)
+        
+        # Force dark black theme
+        bg_color = 'black'
+        fg_color = 'white'
+        button_bg = '#1a1a1a'
+        button_hover_bg = '#2a2a2a'
+        button_active_bg = '#3a3a3a'
+        entry_bg = '#0a0a0a'
+        entry_fg = 'white'
+        line_number_bg = '#1a1a1a'
+        
+        self.configure(bg=bg_color)
+        
+        # Configure ttk styles
+        style = ttk.Style()
+        style.configure('ScriptEditor.TFrame', background=bg_color)
+        style.configure('ScriptEditor.TLabel', background=bg_color, foreground=fg_color)
+        style.configure('ScriptEditor.TButton', 
+                       background=button_bg, 
+                       foreground=fg_color,
+                       borderwidth=1,
+                       focuscolor='none',
+                       relief='flat')
+        style.map('ScriptEditor.TButton',
+                 background=[('active', button_hover_bg), 
+                            ('pressed', button_active_bg)],
+                 foreground=[('active', fg_color), 
+                            ('pressed', fg_color)])
+        
+        # Top toolbar frame
+        toolbar = ttk.Frame(self, style='ScriptEditor.TFrame')
+        toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        
+        # Buttons
+        ttk.Button(toolbar, text="New", command=self.new_file, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Open", command=self.open_file, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Save", command=self.save_file, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Save As", command=self.save_as_file, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Load Script", command=self.load_current_script, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        
+        # Separator
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        
+        # Undo/Redo buttons
+        ttk.Button(toolbar, text="Undo", command=self.undo_action, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Redo", command=self.redo_action, style='ScriptEditor.TButton').pack(side=tk.LEFT, padx=2)
+        
+        # Status label
+        self.status_label = tk.Label(toolbar, text="Ready", bg=bg_color, fg=fg_color, font=('TkDefaultFont', 9))
+        self.status_label.pack(side=tk.RIGHT, padx=5)
+        
+        # Main editor frame with line numbers
+        editor_frame = tk.Frame(self, bg=bg_color)
+        editor_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Line number widget
+        self.line_numbers = tk.Text(editor_frame, 
+                                   width=4, 
+                                   bg=line_number_bg, 
+                                   fg='#888888',
+                                   font=('Courier', 13),
+                                   state=tk.DISABLED,
+                                   padx=5,
+                                   pady=5,
+                                   wrap=tk.NONE,
+                                   relief=tk.FLAT,
+                                   borderwidth=0)
+        self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # Main text editor with scrollbar
+        text_frame = tk.Frame(editor_frame, bg=bg_color)
+        text_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.scrollbar = scrollbar  # Store reference for mouse wheel binding
+        
+        # Text widget with undo enabled
+        self.text_editor = tk.Text(text_frame,
+                                   bg=bg_color,
+                                   fg=fg_color,
+                                   font=('Courier', 13),
+                                   insertbackground=fg_color,
+                                   selectbackground='#333333',
+                                   selectforeground=fg_color,
+                                   wrap=tk.NONE,
+                                   relief=tk.FLAT,
+                                   borderwidth=1,
+                                   highlightthickness=1,
+                                   highlightbackground='#333333',
+                                   highlightcolor='#555555',
+                                   padx=5,
+                                   pady=5,
+                                   yscrollcommand=scrollbar.set,
+                                   undo=True,
+                                   maxundo=1000)
+        self.text_editor.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.text_editor.yview)
+        
+        # Configure syntax highlighting tags
+        self.setup_syntax_highlighting()
+        
+        # Bind events
+        self.text_editor.bind('<KeyRelease>', self.on_text_change)
+        self.text_editor.bind('<Button-1>', lambda e: (self.update_line_numbers(), self.text_editor.focus_set()))
+        self.text_editor.bind('<Key>', lambda e: self.update_line_numbers())
+        # Ensure text editor gets focus when clicked anywhere in the editor area
+        text_frame.bind('<Button-1>', lambda e: self.text_editor.focus_set())
+        editor_frame.bind('<Button-1>', lambda e: self.text_editor.focus_set())
+        
+        # Undo/Redo keyboard shortcuts
+        self.text_editor.bind('<Control-z>', lambda e: (self.undo_action(), "break"))
+        self.text_editor.bind('<Control-y>', lambda e: (self.redo_action(), "break"))
+        self.text_editor.bind('<Control-Z>', lambda e: (self.redo_action(), "break"))  # Ctrl+Shift+Z for redo
+        
+        # Mouse wheel scrolling - use the same approach as ScrolledText
+        # The Text widget automatically handles mouse wheel when it has focus and scrollbar is connected
+        # We just need to sync line numbers after scrolling
+        def sync_after_scroll(event=None):
+            """Sync line numbers after any scroll event"""
+            self.after_idle(self.sync_scroll)
+            return None  # Don't prevent default scrolling
+        
+        # Bind to scrollbar's command to sync line numbers when scrolling
+        # This is called automatically when the text widget scrolls
+        original_yview = scrollbar.cget('command')
+        def synced_yview(*args):
+            """Wrapper to sync line numbers when scrolling"""
+            if original_yview:
+                original_yview(*args)
+            self.after_idle(self.sync_scroll)
+        
+        scrollbar.config(command=synced_yview)
+        
+        # Also bind mouse wheel events to ensure focus and sync
+        # Text widget handles scrolling automatically, we just sync line numbers
+        self.text_editor.bind('<MouseWheel>', lambda e: (self.text_editor.focus_set(), sync_after_scroll(e)))
+        self.text_editor.bind('<Button-4>', lambda e: (self.text_editor.focus_set(), sync_after_scroll(e)))  # macOS scroll up
+        self.text_editor.bind('<Button-5>', lambda e: (self.text_editor.focus_set(), sync_after_scroll(e)))  # macOS scroll down
+        
+        # Forward mouse wheel events from other widgets to text editor
+        def forward_mousewheel(event, target_widget):
+            """Forward mouse wheel event to text editor"""
+            target_widget.focus_set()
+            # Generate the same event on the text editor
+            if hasattr(event, 'delta'):
+                target_widget.event_generate('<MouseWheel>', delta=event.delta)
+            elif hasattr(event, 'num'):
+                target_widget.event_generate(f'<Button-{event.num}>')
+            return None
+        
+        # Bind to other widgets to forward events to text editor
+        scrollbar.bind('<MouseWheel>', lambda e: forward_mousewheel(e, self.text_editor))
+        scrollbar.bind('<Button-4>', lambda e: forward_mousewheel(e, self.text_editor))
+        scrollbar.bind('<Button-5>', lambda e: forward_mousewheel(e, self.text_editor))
+        
+        self.line_numbers.bind('<MouseWheel>', lambda e: forward_mousewheel(e, self.text_editor))
+        self.line_numbers.bind('<Button-4>', lambda e: forward_mousewheel(e, self.text_editor))
+        self.line_numbers.bind('<Button-5>', lambda e: forward_mousewheel(e, self.text_editor))
+        
+        text_frame.bind('<MouseWheel>', lambda e: forward_mousewheel(e, self.text_editor))
+        text_frame.bind('<Button-4>', lambda e: forward_mousewheel(e, self.text_editor))
+        text_frame.bind('<Button-5>', lambda e: forward_mousewheel(e, self.text_editor))
+        
+        # Set initial focus so mouse wheel works immediately
+        self.text_editor.focus_set()
+        self.text_editor.bind('<Control-s>', lambda e: self.save_file())
+        self.text_editor.bind('<Control-o>', lambda e: self.open_file())
+        self.text_editor.bind('<Control-n>', lambda e: self.new_file())
+        self.text_editor.bind('<Return>', self.on_return)
+        self.text_editor.bind('{', self.on_brace_open)
+        self.text_editor.bind('}', self.on_brace_close)
+        
+        # Update line numbers initially
+        self.update_line_numbers()
+        
+        # Handle window closing
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def setup_syntax_highlighting(self):
+        """Configure syntax highlighting tags for mIRC-style scripts"""
+        # Keywords
+        self.text_editor.tag_configure('keyword', foreground='#569cd6', font=('Courier', 13, 'bold'))
+        # Events
+        self.text_editor.tag_configure('event', foreground='#dcdcaa', font=('Courier', 13, 'bold'))
+        # Strings
+        self.text_editor.tag_configure('string', foreground='#ce9178')
+        # Comments
+        self.text_editor.tag_configure('comment', foreground='#6a9955', font=('Courier', 13, 'italic'))
+        # Variables
+        self.text_editor.tag_configure('variable', foreground='#9cdcfe')
+        # Functions
+        self.text_editor.tag_configure('function', foreground='#dcdcaa')
+        # Lists
+        self.text_editor.tag_configure('list', foreground='#4ec9b0')
+        # Numbers
+        self.text_editor.tag_configure('number', foreground='#b5cea8')
+        # Operators
+        self.text_editor.tag_configure('operator', foreground='#d4d4d4')
+    
+    def highlight_syntax(self):
+        """Apply syntax highlighting to the text"""
+        # Remove all tags first
+        for tag in ['keyword', 'event', 'string', 'comment', 'variable', 'function', 'number', 'operator', 'list']:
+            self.text_editor.tag_remove(tag, '1.0', tk.END)
+        
+        content = self.text_editor.get('1.0', tk.END)
+        
+        # Keywords
+        keywords = ['on', 'if', 'else', 'while', 'for', 'return', 'halt', 'break', 'continue', 
+                   'alias', 'function', 'var', 'set', 'unset', 'inc', 'dec', 'echo', 'msg', 'notice',
+                   'join', 'part', 'kick', 'ban', 'unban', 'op', 'deop', 'voice', 'devoice',
+                   'timer', 'load', 'unload', 'reload', 'listadd', 'listdel', 'listclear', 'listinsert']
+        keyword_pattern = r'\b(' + '|'.join(re.escape(k) + r'\b' for k in keywords) + r')'
+        
+        # Events
+        events = ['TEXT', 'JOIN', 'PART', 'QUIT', 'NICK', 'KICK', 'BAN', 'MODE', 'TOPIC', 'NOTICE']
+        event_pattern = r'\b(' + '|'.join(re.escape(e) for e in events) + r')\b'
+        
+        # Apply highlighting
+        for match in re.finditer(keyword_pattern, content, re.IGNORECASE):
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text_editor.tag_add('keyword', start, end)
+        
+        for match in re.finditer(event_pattern, content, re.IGNORECASE):
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text_editor.tag_add('event', start, end)
+        
+        # Strings (single and double quotes)
+        for quote in ['"', "'"]:
+            pattern = re.escape(quote) + r'.*?' + re.escape(quote)
+            for match in re.finditer(pattern, content, re.DOTALL):
+                start = f"1.0 + {match.start()} chars"
+                end = f"1.0 + {match.end()} chars"
+                self.text_editor.tag_add('string', start, end)
+        
+        # Comments (lines starting with ; or //)
+        comment_pattern = r'(;|//).*$'
+        for match in re.finditer(comment_pattern, content, re.MULTILINE):
+            line_start = content[:match.start()].rfind('\n') + 1
+            start = f"1.0 + {line_start} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text_editor.tag_add('comment', start, end)
+        
+        # Lists (@listname and @@listname) - highlight before variables to avoid conflicts
+        list_pattern = r'@@?[a-zA-Z_][a-zA-Z0-9_]*'
+        for match in re.finditer(list_pattern, content):
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text_editor.tag_add('list', start, end)
+        
+        # Functions ($function(), etc.) - built-in and user-defined
+        # Highlight before variables to avoid conflicts
+        function_pattern = r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*\('
+        for match in re.finditer(function_pattern, content):
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end() - 1} chars"
+            self.text_editor.tag_add('function', start, end)
+        
+        # Function definitions (function name(...))
+        function_def_pattern = r'\bfunction\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+        for match in re.finditer(function_def_pattern, content, re.IGNORECASE):
+            # Highlight the function name
+            func_name_start = match.start(1)
+            func_name_end = match.end(1)
+            start = f"1.0 + {func_name_start} chars"
+            end = f"1.0 + {func_name_end} chars"
+            self.text_editor.tag_add('function', start, end)
+        
+        # Variables ($var, %var, etc.) - highlight after functions and lists
+        variable_pattern = r'\$[a-zA-Z_][a-zA-Z0-9_]*|\%[a-zA-Z_][a-zA-Z0-9_]*'
+        for match in re.finditer(variable_pattern, content):
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text_editor.tag_add('variable', start, end)
+        
+        # Numbers
+        number_pattern = r'\b\d+\b'
+        for match in re.finditer(number_pattern, content):
+            start = f"1.0 + {match.start()} chars"
+            end = f"1.0 + {match.end()} chars"
+            self.text_editor.tag_add('number', start, end)
+    
+    def update_line_numbers(self, event=None):
+        """Update line numbers in the sidebar"""
+        # Get current line count
+        content = self.text_editor.get('1.0', tk.END)
+        line_count = content.count('\n')
+        
+        # Update line numbers widget
+        self.line_numbers.config(state=tk.NORMAL)
+        self.line_numbers.delete('1.0', tk.END)
+        
+        for i in range(1, line_count + 1):
+            self.line_numbers.insert(tk.END, f"{i}\n")
+        
+        self.line_numbers.config(state=tk.DISABLED)
+        
+        # Sync scrolling
+        self.sync_scroll()
+    
+    def sync_scroll(self):
+        """Sync line numbers scroll with text editor"""
+        # Get current scroll position
+        scroll_pos = self.text_editor.yview()[0]
+        self.line_numbers.yview_moveto(scroll_pos)
+    
+    def on_mousewheel(self, event):
+        """Handle mouse wheel scrolling - supports both Windows/Linux and macOS"""
+        # Determine scroll direction and amount
+        scroll_amount = 0
+        
+        # Check for macOS button events first (Button-4 and Button-5)
+        if hasattr(event, 'num'):
+            # macOS uses Button-4 (scroll up) and Button-5 (scroll down)
+            if event.num == 4:
+                scroll_amount = -3  # Scroll up (3 lines at a time for smoother scrolling)
+            elif event.num == 5:
+                scroll_amount = 3   # Scroll down
+        # Check for Windows/Linux delta events
+        elif hasattr(event, 'delta'):
+            # Windows/Linux: use delta (positive = scroll down, negative = scroll up)
+            # Delta is typically 120 or -120 per notch
+            scroll_amount = int(-1 * (event.delta / 120)) * 3  # 3 lines per notch
+        
+        # Scroll the text editor if we have a valid scroll amount
+        if scroll_amount != 0:
+            self.text_editor.yview_scroll(scroll_amount, "units")
+            # Update line numbers and sync scrolling
+            if hasattr(self, 'sync_scroll'):
+                self.sync_scroll()
+            self.update_line_numbers()
+        
+        # Return "break" to prevent event propagation
+        return "break"
+    
+    def on_text_change(self, event=None):
+        """Handle text changes - update syntax highlighting and line numbers"""
+        self.modified = True
+        self.update_title()
+        self.update_line_numbers()
+        # Schedule syntax highlighting to avoid lag
+        self.after(10, self.highlight_syntax)
+    
+    def update_title(self):
+        """Update window title with file name and modified status"""
+        if self.current_file:
+            filename = os.path.basename(self.current_file)
+            title = f"Script Editor - {filename}"
+        else:
+            title = "Script Editor - New Script"
+        
+        if self.modified:
+            title += " *"
+        
+        self.title(title)
+    
+    def new_file(self):
+        """Create a new file"""
+        if self.modified:
+            if not self.confirm_unsaved_changes():
+                return
+        
+        self.text_editor.delete('1.0', tk.END)
+        self.text_editor.edit_reset()  # Reset undo stack
+        self.current_file = None
+        self.modified = False
+        self.update_title()
+        self.update_line_numbers()
+        self.status_label.config(text="New file created")
+    
+    def open_file(self):
+        """Open an existing file"""
+        if self.modified:
+            if not self.confirm_unsaved_changes():
+                return
+        
+        filepath = filedialog.askopenfilename(
+            title="Open Script",
+            filetypes=[("Script files", "*.rsx *.txt"), ("All files", "*.*")],
+            initialdir=self.irc_client.script_engine.scripts_dir
+        )
+        
+        if filepath:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                self.text_editor.delete('1.0', tk.END)
+                self.text_editor.insert('1.0', content)
+                self.text_editor.edit_reset()  # Reset undo stack after loading
+                self.current_file = filepath
+                self.modified = False
+                self.update_title()
+                self.update_line_numbers()
+                self.highlight_syntax()
+                self.status_label.config(text=f"Opened: {os.path.basename(filepath)}")
+            except Exception as e:
+                self.status_label.config(text=f"Error opening file: {e}")
+    
+    def save_file(self):
+        """Save the current file"""
+        if self.current_file:
+            try:
+                content = self.text_editor.get('1.0', tk.END)
+                # Remove trailing newline that tkinter adds
+                if content.endswith('\n'):
+                    content = content[:-1]
+                
+                with open(self.current_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                self.modified = False
+                self.update_title()
+                self.status_label.config(text=f"Saved: {os.path.basename(self.current_file)}")
+            except Exception as e:
+                self.status_label.config(text=f"Error saving file: {e}")
+        else:
+            self.save_as_file()
+    
+    def save_as_file(self):
+        """Save the file with a new name"""
+        filepath = filedialog.asksaveasfilename(
+            title="Save Script As",
+            defaultextension=".rsx",
+            filetypes=[("Script files", "*.rsx"), ("Text files", "*.txt"), ("All files", "*.*")],
+            initialdir=self.irc_client.script_engine.scripts_dir
+        )
+        
+        if filepath:
+            try:
+                content = self.text_editor.get('1.0', tk.END)
+                # Remove trailing newline that tkinter adds
+                if content.endswith('\n'):
+                    content = content[:-1]
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                self.current_file = filepath
+                self.modified = False
+                self.update_title()
+                self.status_label.config(text=f"Saved: {os.path.basename(filepath)}")
+            except Exception as e:
+                self.status_label.config(text=f"Error saving file: {e}")
+    
+    def undo_action(self):
+        """Undo the last action"""
+        try:
+            self.text_editor.edit_undo()
+            self.update_line_numbers()
+            self.on_text_change()
+        except tk.TclError:
+            pass  # Nothing to undo
+    
+    def redo_action(self):
+        """Redo the last undone action"""
+        try:
+            self.text_editor.edit_redo()
+            self.update_line_numbers()
+            self.on_text_change()
+        except tk.TclError:
+            pass  # Nothing to redo
+    
+    def load_current_script(self):
+        """Load the current script into the script engine"""
+        if not self.current_file:
+            self.status_label.config(text="No file loaded. Please save the script first.")
+            return
+        
+        try:
+            # Extract filename from path
+            filename = os.path.basename(self.current_file)
+            
+            # Check if script is already loaded and unload it first
+            if filename in self.irc_client.script_engine.loaded_scripts:
+                self.irc_client.script_engine.unload_script(filename)
+            
+            # Load the script
+            if self.current_file.startswith(self.irc_client.script_engine.scripts_dir):
+                # Script is in scripts directory
+                success, msg = self.irc_client.script_engine.load_script(filename)
+            else:
+                # External script
+                success, msg = self.irc_client.script_engine.load_script_from_path(self.current_file)
+            
+            if success:
+                self.status_label.config(text=f"Script loaded: {filename}")
+                self.irc_client.add_status_message(f"Script '{filename}' loaded from editor", 'status')
+            else:
+                self.status_label.config(text=f"Error loading script: {msg}")
+                self.irc_client.add_status_message(f"Error loading script: {msg}", 'error')
+        except Exception as e:
+            self.status_label.config(text=f"Error: {e}")
+            self.irc_client.add_status_message(f"Error loading script: {e}", 'error')
+    
+    def confirm_unsaved_changes(self):
+        """Ask user to confirm discarding unsaved changes"""
+        result = tk.messagebox.askyesnocancel(
+            "Unsaved Changes",
+            "You have unsaved changes. Do you want to save them?",
+            icon='warning'
+        )
+        
+        if result is None:  # Cancel
+            return False
+        elif result:  # Yes - save
+            self.save_file()
+            return True
+        else:  # No - discard
+            return True
+    
+    def get_indent_level(self, line_text):
+        """Get the indentation level of a line (number of spaces)"""
+        indent = 0
+        for char in line_text:
+            if char == ' ':
+                indent += 1
+            elif char == '\t':
+                indent += 4  # Treat tab as 4 spaces
+            else:
+                break
+        return indent
+    
+    def get_indent_level(self, line_text):
+        """Get the indentation level of a line (number of spaces)"""
+        indent = 0
+        for char in line_text:
+            if char == ' ':
+                indent += 1
+            elif char == '\t':
+                indent += 4  # Treat tab as 4 spaces
+            else:
+                break
+        return indent
+    
+    def on_return(self, event):
+        """Handle Return key with auto-indentation"""
+        try:
+            # Get current cursor position and line
+            cursor_pos = self.text_editor.index(tk.INSERT)
+            line_num, col_num = map(int, cursor_pos.split('.'))
+            line_start = f"{line_num}.0"
+            line_end = f"{line_num}.end"
+            current_line = self.text_editor.get(line_start, line_end)
+            
+            # Get indentation of current line
+            indent_level = self.get_indent_level(current_line)
+            indent = ' ' * indent_level
+            
+            # Check if line ends with opening brace or control structures
+            line_stripped = current_line.strip()
+            needs_indent = False
+            
+            # Check for control structures that need indentation
+            if (line_stripped.endswith('{') or 
+                line_stripped.endswith('(') or
+                any(line_stripped.rstrip(' {(').endswith(kw) for kw in ['if', 'else', 'while', 'for', 'on', 'alias'])):
+                needs_indent = True
+                indent += '    '  # Add 4 spaces for the block
+            
+            # Insert newline with proper indentation
+            self.text_editor.insert(tk.INSERT, '\n' + indent)
+            return "break"  # Prevent default newline behavior
+            
+        except Exception as e:
+            return None  # Allow default behavior on error
+    
+    def on_brace_open(self, event):
+        """Handle opening brace with auto-indentation"""
+        try:
+            # Insert the brace
+            self.text_editor.insert(tk.INSERT, '{')
+            
+            # Get current line
+            cursor_pos = self.text_editor.index(tk.INSERT)
+            line_num, col_num = map(int, cursor_pos.split('.'))
+            line_start = f"{line_num}.0"
+            line_end = f"{line_num}.end"
+            current_line = self.text_editor.get(line_start, line_end)
+            
+            # If brace is at end of line, add newline and indent
+            if col_num >= len(current_line.rstrip()):
+                indent_level = self.get_indent_level(current_line)
+                indent = ' ' * (indent_level + 4)  # Indent for block content
+                closing_indent = ' ' * indent_level  # Indent for closing brace
+                
+                # Insert newline, indent, newline, closing brace indent, then closing brace
+                self.text_editor.insert(tk.INSERT, '\n' + indent + '\n' + closing_indent + '}')
+                
+                # Move cursor to the line between braces
+                new_line = line_num + 1
+                self.text_editor.mark_set(tk.INSERT, f"{new_line}.{indent_level + 4}")
+                return "break"
+            
+        except Exception as e:
+            pass
+        return None
+    
+    def on_brace_close(self, event):
+        """Handle closing brace with auto-unindentation"""
+        try:
+            # Get current cursor position and line
+            cursor_pos = self.text_editor.index(tk.INSERT)
+            line_num, col_num = map(int, cursor_pos.split('.'))
+            line_start = f"{line_num}.0"
+            line_end = cursor_pos
+            current_line = self.text_editor.get(line_start, line_end)
+            
+            # Get indentation of current line
+            indent_level = self.get_indent_level(current_line)
+            
+            # If line only has whitespace and the closing brace, unindent
+            if current_line.strip() == '' or (current_line.strip() == '}' and col_num == len(current_line.rstrip())):
+                # Calculate proper indent (4 spaces less)
+                proper_indent = max(0, indent_level - 4)
+                indent = ' ' * proper_indent
+                
+                # Replace the line with properly indented closing brace
+                line_end_full = f"{line_num}.end"
+                self.text_editor.delete(line_start, line_end_full)
+                self.text_editor.insert(line_start, indent + '}')
+                self.text_editor.mark_set(tk.INSERT, f"{line_num}.{len(indent) + 1}")
+                return "break"
+            
+        except Exception as e:
+            pass
+        return None
+    
+    def on_closing(self):
+        """Handle window closing"""
+        if self.modified:
+            if not self.confirm_unsaved_changes():
+                return  # User cancelled
+        
+        # Remove reference from client
+        if hasattr(self.irc_client, 'script_editor_window') and self.irc_client.script_editor_window == self:
+            self.irc_client.script_editor_window = None
         try:
             self.destroy()
         except tk.TclError:
@@ -8098,7 +9244,7 @@ class ThemeSettingsWindow(tk.Toplevel):
         except tk.TclError:
             pass
 
-
+                    
 def main():
     # Configuration info - but don't connect automatically
     default_server = "irc.libera.chat"  # Default server

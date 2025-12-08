@@ -21,6 +21,7 @@ EVENTS:
         CONNECT  - Triggered when connecting to a server
         DISCONNECT - Triggered when disconnecting
         INPUT    - Triggered on user input (before sending)
+        WHOIS    - Triggered when WHOIS data is received (on WHOIS:*:*:{ commands })
     
     Match patterns:
         *        - Match anything
@@ -32,6 +33,19 @@ EVENTS:
 ALIASES:
     alias /commandname { commands }
     alias /greet { msg $chan Hello everyone from $me! }
+
+FUNCTIONS:
+    function name(param1, param2) { return value }
+    function add(a, b) { return $calc(a + b) }
+    
+    Usage:
+        set %result = $add(5, 3)  ; Returns "8"
+        msg $chan Result: $add(10, 20)  ; Returns "30"
+    
+    Parameters:
+        - Access parameters as $1, $2, $3, etc. or by name
+        - Use 'return <value>' to return a result
+        - Functions can be called anywhere identifiers are used
 
 VARIABLES:
     Local:  %var = value
@@ -78,7 +92,8 @@ IDENTIFIERS (read-only):
         $version - Client version
     
     Hostmask:
-        $address - Full hostmask (nick!user@host)
+        $address - Full hostmask (nick!user@host) of the person who triggered the event
+        $address(nick) - Get hostmask of a specific user (looks up stored hostmask)
         $user    - Username portion (~username)
         $host    - Hostname/IP address
         $ip      - Extracted IP address from hostname
@@ -131,6 +146,31 @@ IDENTIFIERS (read-only):
         $ip(hostname) - Extract IP from hostname or encoded format
                         Examples: $ip(c-73-244-70-171.isp.net) → 73.244.70.171
                                   $ip(73.244.70.171) → 73.244.70.171
+        
+        $whois(nick,field) - Get WHOIS information for a user
+                        First, send a WHOIS command: raw WHOIS nickname
+                        Then use $whois() in the WHOIS event handler
+                        
+                        Available fields:
+                            nick      - Nickname
+                            username  - Username (~username)
+                            hostname  - Hostname/IP
+                            realname  - Real name
+                            hostmask  - Full hostmask (nick!user@host)
+                            server    - IRC server name
+                            idle      - Idle time in seconds
+                            channels  - List of channels user is in
+                        
+                        Example:
+                            on TEXT:!whois*:#:{
+                                raw WHOIS $2
+                            }
+                            
+                            on WHOIS:*:*:{
+                                set %whois_nick = $whois($nick, nick)
+                                set %whois_host = $whois($nick, hostname)
+                                msg $chan WHOIS: %whois_nick is on %whois_host
+                            }
 
 COMMANDS:
     IRC Commands:
@@ -180,9 +220,9 @@ CONTROL FLOW:
         $var !isin text
         text iswm pattern  (wildcard match)
 
-EXAMPLE SCRIPT:
-    ; This is a comment
+EXAMPLE SCRIPTS:
     
+    ; ===== Basic Event Handling =====
     ; Greet users who join
     on JOIN:#mychannel:{
         msg $chan Welcome to the channel, $nick!
@@ -198,13 +238,168 @@ EXAMPLE SCRIPT:
         msg $nick Hi! I can help you with that.
     }
     
-    ; Custom command
+    ; ===== Custom Commands (Aliases) =====
     alias /greet {
         if ($1) {
             msg $chan Hello $1!
         }
         else {
             msg $chan Hello everyone!
+        }
+    }
+    
+    ; ===== User-Defined Functions =====
+    ; Simple math function
+    function add(a, b) {
+        return $calc($1 + $2)
+    }
+    
+    ; Function with conditional logic
+    function max(a, b) {
+        if ($1 > $2) {
+            return $1
+        }
+        else {
+            return $2
+        }
+    }
+    
+    ; Usage in event handler
+    on TEXT:!calc*:#:{
+        set %result = $add($2, $3)
+        msg $chan $2 + $3 = %result
+    }
+    
+    ; ===== Lists (Arrays) =====
+    ; Add users to a list
+    on TEXT:!adduser*:#:{
+        if ($2) {
+            listadd @users $2
+            msg $chan Added $2 to user list
+        }
+    }
+    
+    ; Display all users in list
+    on TEXT:!listusers:#:{
+        set %count = $list(@users, count)
+        msg $chan Total users: %count
+        for (%user in @users) {
+            msg $chan - %user
+        }
+    }
+    
+    ; ===== File I/O =====
+    ; Save quotes to file
+    on TEXT:!addquote*:#:{
+        write quotes.txt [$nick] $2-
+        msg $chan Quote added!
+    }
+    
+    ; Read random quote
+    on TEXT:!quote:#:{
+        if ($exists(quotes.txt)) {
+            msg $chan $read(quotes.txt)
+        }
+    }
+    
+    ; ===== WHOIS Information =====
+    ; Request WHOIS for a user
+    on TEXT:!whois*:#:{
+        if ($2) {
+            raw WHOIS $2
+            msg $chan Requesting WHOIS information for $2...
+        }
+    }
+    
+    ; Handle WHOIS response
+    on WHOIS:*:*:{
+        set %whois_nick = $whois($nick, nick)
+        set %whois_user = $whois($nick, username)
+        set %whois_host = $whois($nick, hostname)
+        set %whois_real = $whois($nick, realname)
+        set %whois_hostmask = $whois($nick, hostmask)
+        set %whois_server = $whois($nick, server)
+        set %whois_idle = $whois($nick, idle)
+        set %whois_channels = $whois($nick, channels)
+        
+        ; Display WHOIS information
+        msg $chan === WHOIS: %whois_nick ===
+        msg $chan Hostmask: %whois_hostmask
+        msg $chan Server: %whois_server
+        if (%whois_idle) {
+            msg $chan Idle: %whois_idle seconds
+        }
+        if (%whois_channels) {
+            msg $chan Channels: %whois_channels
+        }
+    }
+    
+    ; ===== Hostmask Lookup =====
+    ; Get hostmask of a user
+    on TEXT:!gethost*:#:{
+        if ($2) {
+            set %hostmask = $address($2)
+            if (%hostmask) {
+                msg $chan Hostmask of $2: %hostmask
+            }
+            else {
+                msg $chan No hostmask found for $2. User may not be in channel.
+            }
+        }
+    }
+    
+    ; ===== User Levels =====
+    ; Set user level
+    on TEXT:!setlevel*:#:{
+        if ($level >= 500) {
+            if ($2 && $3) {
+                setlevel $2 $3
+                msg $chan Set level for $2 to $3
+            }
+        }
+    }
+    
+    ; Check user level
+    on TEXT:!checklevel*:#:{
+        if ($2) {
+            set %user_level = $level($2)
+            msg $chan $2 has level: %user_level
+        }
+    }
+    
+    ; ===== String Manipulation =====
+    ; Uppercase conversion
+    on TEXT:!upper*:#:{
+        if ($2) {
+            msg $chan $upper($2)
+        }
+    }
+    
+    ; String length
+    on TEXT:!len*:#:{
+        if ($2) {
+            set %length = $len($2)
+            msg $chan Length of "$2": %length characters
+        }
+    }
+    
+    ; ===== Math Operations =====
+    ; Calculator
+    on TEXT:!calc*:#:{
+        if ($2-) {
+            set %result = $calc($2-)
+            msg $chan $2- = %result
+        }
+    }
+    
+    ; ===== Tokenization =====
+    ; Parse comma-separated values
+    on TEXT:!parse*:#:{
+        if ($2) {
+            set %count = $numtok($2, 44)  ; 44 = comma ASCII
+            msg $chan Found %count items
+            set %second = $gettok($2, 2, 44)
+            msg $chan Second item: %second
         }
     }
 """
@@ -273,6 +468,15 @@ class ScriptAlias:
         self.enabled = True
 
 
+class ScriptFunction:
+    """Represents a user-defined function"""
+    def __init__(self, name: str, params: List[str], commands: str):
+        self.name = name.lower()
+        self.params = params  # List of parameter names
+        self.commands = commands
+        self.enabled = True
+
+
 class ScriptTimer:
     """Represents a script timer"""
     def __init__(self, name: str, interval: int, repetitions: int, commands: str):
@@ -294,6 +498,7 @@ class ScriptEngine:
         # Script storage
         self.events: List[ScriptEvent] = []
         self.aliases: Dict[str, ScriptAlias] = {}
+        self.functions: Dict[str, ScriptFunction] = {}  # User-defined functions
         self.timers: Dict[str, ScriptTimer] = {}
         
         # Variables
@@ -446,6 +651,31 @@ class ScriptEngine:
                     commands = content[start_pos:pos-1].strip()
                     self.register_alias(name, commands)
             
+            # Parse functions: function name(param1, param2) { commands }
+            # Need to handle nested braces properly
+            function_starts = []
+            for match in re.finditer(r'function\s+(\w+)\s*\(([^)]*)\)\s*{', content, re.IGNORECASE):
+                func_name = match.group(1)
+                params_str = match.group(2).strip()
+                # Parse parameters (comma-separated)
+                params = [p.strip() for p in params_str.split(',')] if params_str else []
+                function_starts.append((func_name, params, match.end()))
+            
+            for func_name, params, start_pos in function_starts:
+                # Find the matching closing brace by counting brace depth
+                brace_count = 1
+                pos = start_pos
+                while pos < len(content) and brace_count > 0:
+                    if content[pos] == '{':
+                        brace_count += 1
+                    elif content[pos] == '}':
+                        brace_count -= 1
+                    pos += 1
+                
+                if brace_count == 0:
+                    commands = content[start_pos:pos-1].strip()
+                    self.register_function(func_name, params, commands)
+            
             return True, "Script parsed successfully"
             
         except Exception as e:
@@ -462,6 +692,11 @@ class ScriptEngine:
         """Register an alias (custom command)"""
         alias = ScriptAlias(name, commands)
         self.aliases[alias.name] = alias
+    
+    def register_function(self, name: str, params: List[str], commands: str):
+        """Register a user-defined function"""
+        func = ScriptFunction(name, params, commands)
+        self.functions[func.name] = func
     
     def unregister_event(self, index: int) -> bool:
         """Remove an event by index"""
@@ -645,9 +880,9 @@ class ScriptEngine:
             
             # Execute built-in commands
             if cmd == 'msg':
-                self._cmd_msg(args, server)
+                self._cmd_msg(args, server, context)
             elif cmd == 'notice':
-                self._cmd_notice(args, server)
+                self._cmd_notice(args, server, context)
             elif cmd == 'me':
                 self._cmd_me(args, server)
             elif cmd == 'join':
@@ -671,7 +906,11 @@ class ScriptEngine:
             elif cmd == 'halt':
                 self.halt_execution = True
             elif cmd == 'return':
-                self.return_value = args
+                # Substitute variables and functions in the return value
+                if args:
+                    self.return_value = self._substitute_vars(args, context)
+                else:
+                    self.return_value = ''
                 self.halt_execution = True
             elif cmd == 'sleep':
                 self._cmd_sleep(args)
@@ -711,18 +950,28 @@ class ScriptEngine:
     
     # ==================== Built-in Commands ====================
     
-    def _cmd_msg(self, args: str, server: str):
+    def _cmd_msg(self, args: str, server: str, context: Dict[str, str] = None):
         """Send a message"""
         parts = args.split(None, 1)
         if len(parts) >= 2:
             target, message = parts
+            # Substitute variables and identifiers in the message
+            if context:
+                message = self._substitute_vars(message, context)
+            # Also substitute in target (for $chan, etc.)
+            if context:
+                target = self._substitute_vars(target, context)
             self.irc_client.send_command(f"PRIVMSG {target} :{message}", server)
     
-    def _cmd_notice(self, args: str, server: str):
+    def _cmd_notice(self, args: str, server: str, context: Dict[str, str] = None):
         """Send a notice"""
         parts = args.split(None, 1)
         if len(parts) >= 2:
             target, message = parts
+            # Substitute variables and identifiers in the message
+            if context:
+                message = self._substitute_vars(message, context)
+                target = self._substitute_vars(target, context)
             self.irc_client.send_command(f"NOTICE {target} :{message}", server)
     
     def _cmd_me(self, args: str, server: str):
@@ -800,6 +1049,7 @@ class ScriptEngine:
         match = re.match(r'(%+)(\w+)\s*=\s*(.*)', args)
         if match:
             prefix, name, value = match.groups()
+            # Fully substitute the value including all functions and variables
             value = self._substitute_vars(value, context)
             if prefix == '%%':
                 self.global_vars[name] = value
@@ -982,7 +1232,7 @@ class ScriptEngine:
                 pass  # Item not in list, silently ignore
     
     def _cmd_listclear(self, args: str):
-        """Clear all items from a list
+        """Clear all items from a list (creates empty list if it doesn't exist)
         Usage: listclear <@listname>
         Examples:
             listclear @mylist
@@ -997,11 +1247,11 @@ class ScriptEngine:
         is_global = len(prefix) == 2
         
         if is_global:
-            if name in self.global_lists:
-                self.global_lists[name].clear()
+            # Create empty list if it doesn't exist, or clear if it does
+            self.global_lists[name] = []
         else:
-            if name in self.local_lists:
-                self.local_lists[name].clear()
+            # Create empty list if it doesn't exist, or clear if it does
+            self.local_lists[name] = []
     
     def _cmd_listinsert(self, args: str, context: Dict[str, str]):
         """Insert an item at a specific index in a list
@@ -1292,8 +1542,14 @@ class ScriptEngine:
     
     # ==================== Variable Substitution ====================
     
-    def _substitute_vars(self, text: str, context: Dict[str, str]) -> str:
-        """Substitute variables and identifiers in text"""
+    def _substitute_vars(self, text: str, context: Dict[str, str], skip_functions: bool = False) -> str:
+        """Substitute variables and identifiers in text
+        
+        Args:
+            text: The text to substitute
+            context: Context dictionary with identifiers
+            skip_functions: If True, only substitute variables, not functions (used internally)
+        """
         # Substitute variables FIRST so they're available inside functions like $calc()
         # BUT: Don't substitute variable names in 'set %var = value' patterns
         
@@ -1303,14 +1559,12 @@ class ScriptEngine:
             var_part = set_match.group(1)  # The %varname part
             value_part = set_match.group(2)  # The value part
             
-            # Only substitute variables in the value part
-            for name, value in self.global_vars.items():
-                value_part = value_part.replace(f'%%{name}', value)
-            for name, value in self.local_vars.items():
-                value_part = value_part.replace(f'%{name}', value)
+            # Fully substitute the value part including all variables, identifiers, and functions
+            # This is a recursive call but we need to process the value part completely
+            value_part = self._substitute_vars(value_part, context)
             
-            # Reconstruct the set command
-            text = f'set {var_part} = {value_part}'
+            # Return the fully substituted set command
+            return f'set {var_part} = {value_part}'
         else:
             # Not a set command - substitute variables normally
             # Handle global variables: %%varname
@@ -1322,20 +1576,51 @@ class ScriptEngine:
                 text = text.replace(f'%{name}', value)
         
         # Handle function-style identifiers after variables are substituted
-        text = re.sub(r'\$rand\((\d+)\)', lambda m: str(random.randint(0, int(m.group(1))-1)), text)
-        text = re.sub(r'\$len\(([^)]*)\)', lambda m: str(len(self._substitute_vars(m.group(1), context))), text)
-        text = re.sub(r'\$upper\(([^)]*)\)', lambda m: self._substitute_vars(m.group(1), context).upper(), text)
-        text = re.sub(r'\$lower\(([^)]*)\)', lambda m: self._substitute_vars(m.group(1), context).lower(), text)
-        text = re.sub(r'\$left\(([^,]*),(\d+)\)', lambda m: self._substitute_vars(m.group(1), context)[:int(m.group(2))], text)
-        text = re.sub(r'\$right\(([^,]*),(\d+)\)', lambda m: self._substitute_vars(m.group(1), context)[-int(m.group(2)):], text)
-        text = re.sub(r'\$mid\(([^,]*),(\d+),(\d+)\)', lambda m: self._substitute_vars(m.group(1), context)[int(m.group(2)):int(m.group(2))+int(m.group(3))], text)
-        
-        # User level functions
-        text = re.sub(r'\$level\(([^)]+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context), 0)), text)
-        text = re.sub(r'\$islevel\(([^,]+),(\d+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context), 0) >= int(m.group(2))), text)
-        
-        # IP extraction function
-        text = re.sub(r'\$ip\(([^)]+)\)', lambda m: self._extract_ip(self._substitute_vars(m.group(1), context)), text)
+        # Skip if we're in a nested call (skip_functions=True)
+        if not skip_functions:
+            text = re.sub(r'\$rand\((\d+)\)', lambda m: str(random.randint(0, int(m.group(1))-1)), text)
+            text = re.sub(r'\$len\(([^)]*)\)', lambda m: str(len(self._substitute_vars(m.group(1), context, skip_functions=True))), text)
+            text = re.sub(r'\$upper\(([^)]*)\)', lambda m: self._substitute_vars(m.group(1), context, skip_functions=True).upper(), text)
+            text = re.sub(r'\$lower\(([^)]*)\)', lambda m: self._substitute_vars(m.group(1), context, skip_functions=True).lower(), text)
+            text = re.sub(r'\$left\(([^,]*),(\d+)\)', lambda m: self._substitute_vars(m.group(1), context, skip_functions=True)[:int(m.group(2))], text)
+            text = re.sub(r'\$right\(([^,]*),(\d+)\)', lambda m: self._substitute_vars(m.group(1), context, skip_functions=True)[-int(m.group(2)):], text)
+            text = re.sub(r'\$mid\(([^,]*),(\d+),(\d+)\)', lambda m: self._substitute_vars(m.group(1), context, skip_functions=True)[int(m.group(2)):int(m.group(2))+int(m.group(3))], text)
+            
+            # User level functions
+            text = re.sub(r'\$level\(([^)]+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context, skip_functions=True), 0)), text)
+            text = re.sub(r'\$islevel\(([^,]+),(\d+)\)', lambda m: str(self.user_levels.get(self._substitute_vars(m.group(1), context, skip_functions=True), 0) >= int(m.group(2))), text)
+            
+            # Hostmask lookup function: $address(nick)
+            def sub_address(match):
+                param = match.group(1).strip()
+                param = self._substitute_vars(param, context, skip_functions=True)
+                return self._func_address(param, context)
+            text = re.sub(r'\$address\(([^)]+)\)', sub_address, text)
+            
+            # WHOIS lookup function: $whois(nick,field)
+            def sub_whois(match):
+                params = match.group(1).strip()
+                # Parse parameters (nick, field)
+                if ',' in params:
+                    parts = params.split(',', 1)
+                    nick_param = parts[0].strip()
+                    field_param = parts[1].strip()
+                else:
+                    nick_param = params
+                    field_param = ''
+                
+                # Substitute variables in parameters using recursive substitution
+                # This ensures %target and other variables are properly resolved
+                nick_param = self._substitute_vars(nick_param, context, skip_functions=True)
+                field_param = self._substitute_vars(field_param, context, skip_functions=True) if field_param else ''
+                
+                result = self._func_whois(nick_param, field_param, context)
+                # Always return the result, even if empty - this ensures substitution happens
+                return result
+            text = re.sub(r'\$whois\(([^)]+)\)', sub_whois, text)
+            
+            # IP extraction function
+            text = re.sub(r'\$ip\(([^)]+)\)', lambda m: self._extract_ip(self._substitute_vars(m.group(1), context, skip_functions=True)), text)
         
         # File I/O functions
         text = re.sub(r'\$read\(([^,)]+)\)', lambda m: self._func_read(m.group(1).strip(), None, context), text)
@@ -1378,6 +1663,163 @@ class ScriptEngine:
         text = re.sub(r'\$strip\(([^)]+)\)', lambda m: self._func_strip(self._substitute_vars(m.group(1), context)), text)
         text = re.sub(r'\$reptok\(([^,]+),\s*([^,]+),\s*([^,]+),\s*(\d+)\)', lambda m: self._func_reptok(self._substitute_vars(m.group(1), context), self._substitute_vars(m.group(2), context), self._substitute_vars(m.group(3), context), int(m.group(4))), text)
         
+        # User-defined functions: $functionname(param1, param2, ...)
+        # This must come after built-in functions to avoid conflicts
+        # We need to match any $name(...) that isn't a built-in function
+        if not skip_functions:
+            # List of built-in function names to exclude
+            builtin_func_names = {
+                'len', 'upper', 'lower', 'left', 'right', 'mid', 'pos', 'replace', 'remove', 
+                'str', 'chr', 'asc', 'strip', 'reptok', 'calc', 'round', 'abs', 'sqrt', 
+                'floor', 'ceil', 'read', 'exists', 'lines', 'list', 'gettok', 'numtok', 
+                'findtok', 'addtok', 'remtok', 'rand', 'level', 'islevel', 'ip', 'address', 
+                'whois', 'nick', 'chan', 'me', 'server', 'target', 'text', 'time', 'date', 
+                'version', 'user', 'host', 'address'
+            }
+            
+            def sub_user_function(match):
+                func_name = match.group(1).strip().lower()
+                params_str = match.group(2).strip() if match.group(2) else ''
+                
+                # Skip if it's a built-in function
+                if func_name in builtin_func_names:
+                    return match.group(0)  # Return original, let built-in handlers process it
+                
+                # Check if it's a user-defined function
+                if func_name not in self.functions:
+                    # Not a user-defined function - return original to preserve it
+                    # This might be a variable or something else
+                    return match.group(0)
+                
+                # Parse parameters (comma-separated)
+                # First, substitute any nested functions in the parameter string
+                # This ensures inner functions are evaluated before outer ones
+                params_str = self._substitute_vars(params_str, context, skip_functions=False)
+                
+                if params_str:
+                    # Split by comma, but handle nested function calls and parentheses
+                    params = []
+                    current_param = ''
+                    paren_depth = 0
+                    for char in params_str:
+                        if char == '(':
+                            paren_depth += 1
+                            current_param += char
+                        elif char == ')':
+                            paren_depth -= 1
+                            current_param += char
+                        elif char == ',' and paren_depth == 0:
+                            params.append(current_param.strip())
+                            current_param = ''
+                        else:
+                            current_param += char
+                    if current_param.strip():
+                        params.append(current_param.strip())
+                else:
+                    params = []
+                
+                # Parameters may still have variables that need substitution
+                substituted_params = []
+                for param in params:
+                    # Do final substitution (variables, but functions should already be done)
+                    substituted_params.append(self._substitute_vars(param, context, skip_functions=True))
+                
+                # Execute the function
+                result = self._execute_function(func_name, substituted_params, context)
+                return result
+            
+            # Match function calls: $name(params) or $name()
+            # We need to handle nested parentheses correctly
+            # Use a more sophisticated approach: find the innermost function calls first
+            max_iterations = 10  # Prevent infinite loops
+            iteration = 0
+            while iteration < max_iterations:
+                # Find all function calls with proper nested parenthesis handling
+                # We'll match from innermost to outermost
+                def find_innermost_function(match):
+                    # This will be called for each potential match
+                    # We need to verify it's actually a complete function call
+                    return match.group(0)
+                
+                # Use a pattern that finds function calls, but we need to handle nesting
+                # Strategy: find $name( and then find the matching )
+                pattern = r'\$(\w+)\('
+                matches = list(re.finditer(pattern, text))
+                
+                if not matches:
+                    break  # No more function calls
+                
+                # Process from right to left (innermost first)
+                matches.reverse()
+                new_text = text
+                for match in matches:
+                    func_name = match.group(1).strip().lower()
+                    start_pos = match.end()  # Position after $name(
+                    
+                    # Skip if it's a built-in function
+                    if func_name in builtin_func_names:
+                        continue
+                    
+                    # Skip if it's not a user-defined function
+                    if func_name not in self.functions:
+                        continue
+                    
+                    # Find the matching closing parenthesis
+                    paren_depth = 1
+                    pos = start_pos
+                    while pos < len(new_text) and paren_depth > 0:
+                        if new_text[pos] == '(':
+                            paren_depth += 1
+                        elif new_text[pos] == ')':
+                            paren_depth -= 1
+                        pos += 1
+                    
+                    if paren_depth == 0:
+                        # Found complete function call
+                        params_str = new_text[start_pos:pos-1].strip()
+                        # Substitute nested functions in parameters first
+                        params_str = self._substitute_vars(params_str, context, skip_functions=False)
+                        
+                        # Parse parameters
+                        if params_str:
+                            params = []
+                            current_param = ''
+                            param_paren_depth = 0
+                            for char in params_str:
+                                if char == '(':
+                                    param_paren_depth += 1
+                                    current_param += char
+                                elif char == ')':
+                                    param_paren_depth -= 1
+                                    current_param += char
+                                elif char == ',' and param_paren_depth == 0:
+                                    params.append(current_param.strip())
+                                    current_param = ''
+                                else:
+                                    current_param += char
+                            if current_param.strip():
+                                params.append(current_param.strip())
+                        else:
+                            params = []
+                        
+                        # Substitute variables in parameters
+                        substituted_params = []
+                        for param in params:
+                            substituted_params.append(self._substitute_vars(param, context, skip_functions=True))
+                        
+                        # Execute the function
+                        result = self._execute_function(func_name, substituted_params, context)
+                        
+                        # Replace the function call with the result
+                        func_call = new_text[match.start():pos]
+                        new_text = new_text[:match.start()] + result + new_text[pos:]
+                        break  # Process one at a time, then restart
+                
+                if new_text == text:
+                    break  # No more substitutions
+                text = new_text
+                iteration += 1
+        
         # Handle context identifiers
         text = text.replace('$nick', context.get('nick', ''))
         text = text.replace('$chan', context.get('chan', ''))
@@ -1386,8 +1828,42 @@ class ScriptEngine:
         text = text.replace('$server', context.get('server', ''))
         text = text.replace('$me', context.get('me', ''))
         
-        # Hostmask identifiers
-        text = text.replace('$address', context.get('address', ''))
+        # Handle numbered tokens ($1, $2, $3, etc.) and ranges ($1-, $2-, etc.)
+        # These are used in events and functions
+        for i in range(1, 100):  # Support up to $99
+            token_key = str(i)
+            token_range_key = f'{i}-'
+            if token_key in context:
+                # Replace $N with the value
+                text = text.replace(f'${i}', context.get(token_key, ''))
+            if token_range_key in context:
+                # Replace $N- with the range value
+                text = text.replace(f'${i}-', context.get(token_range_key, ''))
+        
+        # Handle parameter names in function context (for user-defined functions)
+        # These are mapped when the function is called, so we can substitute them here
+        # But we need to be careful - only substitute if they're not part of a larger identifier
+        # For now, we'll substitute parameter names that are in the context
+        # This allows functions to use parameter names like 'a', 'b' directly
+        # Only do this if we're in a function context (check if context has parameter names)
+        # Parameter names are typically short and don't contain special characters
+        for key, value in context.items():
+            # Only substitute if it's a simple parameter name (not $1, $2, etc. which are already handled)
+            # Also skip context identifiers like 'nick', 'chan', etc.
+            if (key and not key.isdigit() and not key.endswith('-') and 
+                key not in ['nick', 'chan', 'target', 'text', 'server', 'me', 'user', 'host', 'address'] and
+                len(key) <= 20):  # Parameter names are typically short
+                # Replace standalone parameter names (word boundaries)
+                # This is a simple approach - replace 'a' with its value, but be careful with word boundaries
+                # Only replace if it's not part of a variable or identifier (not preceded by $ or %)
+                pattern = r'(?<![$%])\b' + re.escape(key) + r'\b'
+                text = re.sub(pattern, value, text)
+        
+        # Hostmask identifiers (only if not in a function call - $address() is handled above)
+        # Check that $address is not followed by ( to avoid replacing $address(nick) with context address
+        import re as re_module
+        # Replace $address only if it's not part of $address(...)
+        text = re_module.sub(r'\$address(?!\()', context.get('address', ''), text)
         text = text.replace('$user', context.get('user', ''))
         text = text.replace('$host', context.get('host', ''))
         
@@ -1422,6 +1898,164 @@ class ScriptEngine:
         return text
     
     # ==================== Utility Methods ====================
+    
+    def _func_address(self, nick: str, context: Dict[str, str]) -> str:
+        """Get hostmask for a specific nickname: $address(nick)"""
+        if not nick:
+            return ''
+        
+        # Strip any whitespace
+        nick = nick.strip()
+        
+        server = context.get('server', '')
+        if not server and self.irc_client:
+            # Try to get server from current connection
+            if hasattr(self.irc_client, 'current_server') and self.irc_client.current_server:
+                server = self.irc_client.current_server
+            elif hasattr(self.irc_client, 'connections') and self.irc_client.connections:
+                # Use first available server
+                server = list(self.irc_client.connections.keys())[0] if self.irc_client.connections else ''
+        
+        if server and self.irc_client:
+            hostmask_key = f"{server}:{nick.lower()}"
+            if hasattr(self.irc_client, 'user_hostmasks'):
+                hostmask = self.irc_client.user_hostmasks.get(hostmask_key, '')
+                # Only return the hostmask if we found it - don't fall back to context address
+                return hostmask
+        
+        return ''
+    
+    def _func_whois(self, nick: str, field: str, context: Dict[str, str]) -> str:
+        """Get WHOIS data for a specific nickname: $whois(nick,field)"""
+        if not nick:
+            return ''
+        
+        nick = nick.strip()
+        field = field.strip() if field else ''
+        
+        if not self.irc_client or not hasattr(self.irc_client, 'whois_data'):
+            return ''
+        
+        # Try to find WHOIS data by matching the nickname (case-insensitive)
+        # The server part of the key might vary (e.g., "irc.libera.chat" vs "copper.libera.chat")
+        matching_keys = []
+        for key in self.irc_client.whois_data.keys():
+            if key.lower().endswith(f":{nick.lower()}"):
+                matching_keys.append(key)
+        
+        if not matching_keys:
+            return ''
+        
+        # Use the first matching key (or prefer the one matching the context server if available)
+        server = context.get('server', '')
+        if not server and self.irc_client:
+            if hasattr(self.irc_client, 'current_server') and self.irc_client.current_server:
+                server = self.irc_client.current_server
+            elif hasattr(self.irc_client, 'connections') and self.irc_client.connections:
+                server = list(self.irc_client.connections.keys())[0] if self.irc_client.connections else ''
+        
+        # Prefer a key that matches the server from context/connections
+        whois_key = None
+        if server:
+            for key in matching_keys:
+                if key.startswith(f"{server}:"):
+                    whois_key = key
+                    break
+        
+        # If no server match, use the first matching key
+        if not whois_key:
+            whois_key = matching_keys[0]
+        
+        whois_info = self.irc_client.whois_data[whois_key]
+        field_lower = field.lower() if field else ''
+        
+        # Map field names to data keys
+        field_map = {
+            'nick': 'nick',
+            'username': 'username',
+            'user': 'username',
+            'hostname': 'hostname',
+            'host': 'hostname',
+            'realname': 'realname',
+            'real': 'realname',
+            'hostmask': 'hostmask',
+            'server': 'irc_server',
+            'irc_server': 'irc_server',
+            'server_info': 'server_info',
+            'idle': 'idle_seconds',
+            'idle_seconds': 'idle_seconds',
+            'signon': 'signon_time',
+            'signon_time': 'signon_time',
+            'channels': 'channels',
+            'operator': 'is_operator',
+            'is_operator': 'is_operator'
+        }
+        
+        data_key = field_map.get(field_lower, field_lower)
+        value = whois_info.get(data_key, '')
+        if isinstance(value, bool):
+            return str(value)
+        # Return the value, even if empty (empty string means field not found/not available)
+        return str(value) if value is not None else ''
+    
+    def _execute_function(self, func_name: str, params: List[str], context: Dict[str, str]) -> str:
+        """Execute a user-defined function and return its result"""
+        func_name = func_name.lower()
+        
+        if func_name not in self.functions:
+            # Function not found - return empty string (don't modify the original text)
+            # This allows the original $function(...) to remain if it's not a user function
+            return ''  # Function not found, return empty string
+        
+        func = self.functions[func_name]
+        if not func.enabled:
+            return ''
+        
+        # Create a new context for the function with parameter values
+        func_context = context.copy() if context else {}
+        
+        # Map parameters to $1, $2, $3, etc. in the function context
+        for i, param_value in enumerate(params):
+            func_context[str(i + 1)] = param_value
+            func_context[f'{i + 1}-'] = ' '.join(params[i:]) if i < len(params) else ''
+        
+        # Also map named parameters if the function has them
+        for i, param_name in enumerate(func.params):
+            if i < len(params):
+                # Store as both the parameter name and $N
+                func_context[param_name] = params[i]
+                func_context[str(i + 1)] = params[i]
+        
+        # Save current return value and halt state
+        old_return_value = self.return_value
+        old_halt_execution = self.halt_execution
+        
+        # Reset for function execution
+        self.return_value = None
+        self.halt_execution = False
+        
+        # Execute the function commands
+        try:
+            # Get server and target from context for command execution
+            server = func_context.get('server', '')
+            target = func_context.get('target', '')
+            
+            # Execute the function's commands
+            self.execute_commands(func.commands, func_context, server, target)
+            
+            # Get the return value
+            result = self.return_value if self.return_value is not None else ''
+            
+        except Exception as e:
+            self._log_error(f"Error executing function {func_name}: {e}")
+            result = ''
+        finally:
+            # Restore previous state
+            self.return_value = old_return_value
+            self.halt_execution = old_halt_execution
+        
+        # Return the result as a string
+        return str(result) if result is not None else ''
     
     def _get_my_nick(self, server: str) -> str:
         """Get the current nickname for a server"""

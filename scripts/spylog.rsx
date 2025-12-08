@@ -2,7 +2,7 @@
 ; SpyLog v1.0
 ; ========================================
 
-; Description: Spy on a IRC channel, log texts and ips
+; Description: Spy on a IRC channel, log texts and ips among other things
 ; Author: c0d3Ninja
 ;
 ; ========================================
